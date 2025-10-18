@@ -1,28 +1,36 @@
+// src/auth/AuthContext.tsx (o .jsx)
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { storage } from "./storage";
+import { Platform } from "react-native";
 
 type User = { id: string; email: string; name?: string; bio?: string };
+
 type AuthCtx = {
   user: User | null;
+  accessToken: string | null;        // 🔹 nuevo
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>; // ⬅️ NUEVO
+  register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthCtx>({} as any);
+// Base URL sensible al entorno
+const API =
+  Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
 
-// Ajusta según tu entorno (web: localhost, emulador Android: 10.0.2.2)
-const API = "http://localhost:4000";
+const AuthContext = createContext<AuthCtx>({} as any);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null); // 🔹 nuevo
   const [loading, setLoading] = useState(true);
 
   async function hydrate() {
     try {
       const token = await storage.get("accessToken");
-      if (!token) return;
+      if (!token) return; // no user signed in
+      setAccessToken(token); // 🔹 mantener en memoria
+
       const r = await fetch(`${API}/users/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -30,12 +38,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await r.json();
         setUser(data.user);
       } else {
-        // token inválido → limpiar
         await storage.del("accessToken");
         await storage.del("refreshToken");
+        setAccessToken(null); // 🔹 limpiar
         setUser(null);
       }
     } catch {
+      setAccessToken(null);
       setUser(null);
     } finally {
       setLoading(false);
@@ -46,9 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hydrate();
   }, []);
 
-  const persistSession = async (accessToken: string, refreshToken: string, u: User) => {
-    await storage.set("accessToken", accessToken);
-    await storage.set("refreshToken", refreshToken);
+  const persistSession = async (
+    accessTokenIn: string,
+    refreshTokenIn: string,
+    u: User
+  ) => {
+    await storage.set("accessToken", accessTokenIn);
+    await storage.set("refreshToken", refreshTokenIn);
+    setAccessToken(accessTokenIn); // 🔹 mantener en memoria
     setUser(u);
   };
 
@@ -62,11 +76,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const msg = await r.text();
       throw new Error(msg || "Invalid credentials");
     }
-    const { accessToken, refreshToken, user } = await r.json();
-    await persistSession(accessToken, refreshToken, user);
+    const { accessToken: at, refreshToken: rt, user: u } = await r.json();
+    await persistSession(at, rt, u);
   };
 
-  // ⬅️ NUEVO: registro con tu backend
   const register = async (email: string, password: string, name: string) => {
     const r = await fetch(`${API}/auth/register`, {
       method: "POST",
@@ -74,8 +87,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email, password, name }),
     });
     if (!r.ok) {
-      // tu back devuelve 409 cuando el email ya existe
-      // y 422 para validaciones (zod)
       const body = await r.json().catch(() => ({}));
       const message =
         body?.message ||
@@ -83,18 +94,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         (r.status === 409 ? "El email ya está registrado" : "Error al registrarte");
       throw new Error(message);
     }
-    const { accessToken, refreshToken, user } = await r.json();
-    await persistSession(accessToken, refreshToken, user);
+    const { accessToken: at, refreshToken: rt, user: u } = await r.json();
+    await persistSession(at, rt, u);
   };
 
   const logout = async () => {
     await storage.del("accessToken");
     await storage.del("refreshToken");
+    setAccessToken(null); // 🔹 limpiar
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, accessToken, loading, login, register, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

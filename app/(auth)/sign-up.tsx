@@ -12,7 +12,7 @@ import { useAuth } from "../../src/auth/AuthContext";
 const SignUpScreen = () => {
   const router = useRouter();
   const { register } = useAuth();
-  const [name, setName] = useState("");        // <-- añadido
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -1,7 +1,6 @@
 import { View, Text, ScrollView, TouchableOpacity, FlatList, RefreshControl } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import { MealAPI } from "../../services/mealAPI";
 import { homeStyles } from "../../assets/styles/home.styles";
 import { Image } from "expo-image";
 import { COLORS } from "../../constants/colors";
@@ -9,121 +8,92 @@ import { Ionicons } from "@expo/vector-icons";
 import CategoryFilter from "../../components/CategoryFilter";
 import RecipeCard from "../../components/RecipeCard";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import { Platform } from "react-native";
+import { useAuth } from "@/src/auth/AuthContext";
+import { toCardVM } from "@/services/recipeMapper";
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const API_BASE = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
 
 const HomeScreen = () => {
   const router = useRouter();
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [recipes, setRecipes] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const { accessToken } = useAuth();
+
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [recipes, setRecipes] = useState([]);         // <-- cards VM
+  const [categories, setCategories] = useState([]);   // [{id,name,image?,description?}]
   const [featuredRecipe, setFeaturedRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = async () => {
+  const fetchRecipes = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const res = await fetch(`${API_BASE}/recipes?scope=general&limit=100`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error("No autorizado");
+      const data = await res.json(); // {items: [...]}
+      const cards = (data.items || []).map(toCardVM);
 
-      const [apiCategories, randomMeals, featuredMeal] = await Promise.all([
-        MealAPI.getCategories(),
-        MealAPI.getRandomMeals(12),
-        MealAPI.getRandomMeal(),
-      ]);
-
-      const transformedCategories = apiCategories.map((cat, index) => ({
-        id: index + 1,
-        name: cat.strCategory,
-        image: cat.strCategoryThumb,
-        description: cat.strCategoryDescription,
+      // armar categorías desde tags (más 'All')
+      const tagSet = new Set(["All"]);
+      cards.forEach((c) => c.category && tagSet.add(c.category));
+      const cats = Array.from(tagSet).map((name, i) => ({
+        id: i + 1,
+        name,
+        image: undefined,
+        description: "",
       }));
 
-      setCategories(transformedCategories);
-
-      if (!selectedCategory) setSelectedCategory(transformedCategories[0].name);
-
-      const transformedMeals = randomMeals
-        .map((meal) => MealAPI.transformMealData(meal))
-        .filter((meal) => meal !== null);
-
-      setRecipes(transformedMeals);
-
-      const transformedFeatured = MealAPI.transformMealData(featuredMeal);
-      setFeaturedRecipe(transformedFeatured);
-    } catch (error) {
-      console.log("Error loading the data", error);
+      setRecipes(cards);
+      setCategories(cats);
+      setFeaturedRecipe(cards[0] || null);
+      if (!cats.find((c) => c.name === selectedCategory)) setSelectedCategory("All");
+    } catch (e) {
+      console.log("Error loading recipes", e);
+      setRecipes([]);
+      setCategories([{ id: 1, name: "All" }]);
+      setFeaturedRecipe(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadCategoryData = async (category) => {
-    try {
-      const meals = await MealAPI.filterByCategory(category);
-      const transformedMeals = meals
-        .map((meal) => MealAPI.transformMealData(meal))
-        .filter((meal) => meal !== null);
-      setRecipes(transformedMeals);
-    } catch (error) {
-      console.error("Error loading category data:", error);
-      setRecipes([]);
-    }
-  };
-
   const handleCategorySelect = async (category) => {
     setSelectedCategory(category);
-    await loadCategoryData(category);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // await sleep(2000);
-    await loadData();
+    await fetchRecipes();
     setRefreshing(false);
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchRecipes();
+  }, [accessToken]);
 
-  if (loading && !refreshing) return <LoadingSpinner message="Loading delicions recipes..." />;
+  const filteredRecipes =
+    selectedCategory === "All"
+      ? recipes
+      : recipes.filter((r) => r.category === selectedCategory);
+
+  if (loading && !refreshing) return <LoadingSpinner message="Loading delicious recipes..." />;
 
   return (
     <View style={homeStyles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={COLORS.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
         }
         contentContainerStyle={homeStyles.scrollContent}
       >
         {/*  ANIMAL ICONS */}
         <View style={homeStyles.welcomeSection}>
-          <Image
-            source={require("../../assets/images/lamb.png")}
-            style={{
-              width: 100,
-              height: 100,
-            }}
-          />
-          <Image
-            source={require("../../assets/images/chicken.png")}
-            style={{
-              width: 100,
-              height: 100,
-            }}
-          />
-          <Image
-            source={require("../../assets/images/pork.png")}
-            style={{
-              width: 100,
-              height: 100,
-            }}
-          />
+          <Image source={require("../../assets/images/lamb.png")}   style={{ width: 100, height: 100 }} />
+          <Image source={require("../../assets/images/chicken.png")} style={{ width: 100, height: 100 }} />
+          <Image source={require("../../assets/images/pork.png")}    style={{ width: 100, height: 100 }} />
         </View>
 
         {/* FEATURED SECTION */}
@@ -132,15 +102,16 @@ const HomeScreen = () => {
             <TouchableOpacity
               style={homeStyles.featuredCard}
               activeOpacity={0.9}
-              onPress={() => router.push(`/recipe/${featuredRecipe.id}`)}
+              onPress={() =>
+                router.push({ pathname: "/(recipes)/[id]", params: { id: String(featuredRecipe.id) } })
+              }
             >
               <View style={homeStyles.featuredImageContainer}>
-                <Image
-                  source={{ uri: featuredRecipe.image }}
-                  style={homeStyles.featuredImage}
-                  contentFit="cover"
-                  transition={500}
-                />
+                {featuredRecipe.image ? (
+                  <Image source={{ uri: featuredRecipe.image }} style={homeStyles.featuredImage} contentFit="cover" transition={500} />
+                ) : (
+                  <View style={[homeStyles.featuredImage, { backgroundColor: "#222" }]} />
+                )}
                 <View style={homeStyles.featuredOverlay}>
                   <View style={homeStyles.featuredBadge}>
                     <Text style={homeStyles.featuredBadgeText}>Featured</Text>
@@ -160,10 +131,10 @@ const HomeScreen = () => {
                         <Ionicons name="people-outline" size={16} color={COLORS.white} />
                         <Text style={homeStyles.metaText}>{featuredRecipe.servings}</Text>
                       </View>
-                      {featuredRecipe.area && (
+                      {featuredRecipe.category && (
                         <View style={homeStyles.metaItem}>
-                          <Ionicons name="location-outline" size={16} color={COLORS.white} />
-                          <Text style={homeStyles.metaText}>{featuredRecipe.area}</Text>
+                          <Ionicons name="pricetag-outline" size={16} color={COLORS.white} />
+                          <Text style={homeStyles.metaText}>{featuredRecipe.category}</Text>
                         </View>
                       )}
                     </View>
@@ -174,6 +145,7 @@ const HomeScreen = () => {
           </View>
         )}
 
+        {/* CATEGORIES (desde tags + All) */}
         {categories.length > 0 && (
           <CategoryFilter
             categories={categories}
@@ -182,21 +154,32 @@ const HomeScreen = () => {
           />
         )}
 
+        {/* GRID */}
         <View style={homeStyles.recipesSection}>
           <View style={homeStyles.sectionHeader}>
             <Text style={homeStyles.sectionTitle}>{selectedCategory}</Text>
           </View>
 
-          {recipes.length > 0 ? (
+          {filteredRecipes.length > 0 ? (
             <FlatList
-              data={recipes}
-              renderItem={({ item }) => <RecipeCard recipe={item} />}
-              keyExtractor={(item) => item.id.toString()}
+              data={filteredRecipes}
+              renderItem={({ item }) => (
+                <RecipeCard
+                  recipe={{
+                    id: item.id,
+                    title: item.title,
+                    image: item.image,
+                    cookTime: item.cookTime,
+                    servings: item.servings,
+                  }}
+                  onPress={() => router.push({ pathname: "/(recipes)/[id]", params: { id: String(item.id) } })}
+                />
+              )}
+              keyExtractor={(item) => String(item.id)}
               numColumns={2}
               columnWrapperStyle={homeStyles.row}
               contentContainerStyle={homeStyles.recipesGrid}
               scrollEnabled={false}
-              // ListEmptyComponent={}
             />
           ) : (
             <View style={homeStyles.emptyState}>
@@ -210,4 +193,5 @@ const HomeScreen = () => {
     </View>
   );
 };
+
 export default HomeScreen;

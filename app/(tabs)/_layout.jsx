@@ -9,10 +9,52 @@ export default function TabsLayout() {
   if (!user) return <Redirect href="/(auth)/sign-in" />;
 
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: COLORS.primary }}>
-      <Tabs.Screen name="index" options={{ title: "Recipes", tabBarIcon: ({ color, size }) => <Ionicons name="restaurant" color={color} size={size} /> }} />
-      <Tabs.Screen name="search" options={{ title: "Search", tabBarIcon: ({ color, size }) => <Ionicons name="search" color={color} size={size} /> }} />
-      <Tabs.Screen name="favorites" options={{ title: "Favorites", tabBarIcon: ({ color, size }) => <Ionicons name="heart" color={color} size={size} /> }} />
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.primary,
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Recipes",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="restaurant" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: "Search",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="search" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="favorites"
+        options={{
+          title: "Favorites",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart" color={color} size={size} />
+          ),
+        }}
+      />
+
+      {/* NUEVO: tab para Crear */}
+      <Tabs.Screen
+        name="create"
+        options={{
+          title: "Create",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="add-circle" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
