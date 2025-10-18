@@ -89,61 +89,9 @@ const HomeScreen = () => {
         }
         contentContainerStyle={homeStyles.scrollContent}
       >
-        {/*  ANIMAL ICONS */}
-        <View style={homeStyles.welcomeSection}>
-          <Image source={require("../../assets/images/lamb.png")}   style={{ width: 100, height: 100 }} />
-          <Image source={require("../../assets/images/chicken.png")} style={{ width: 100, height: 100 }} />
-          <Image source={require("../../assets/images/pork.png")}    style={{ width: 100, height: 100 }} />
-        </View>
+       
 
-        {/* FEATURED SECTION */}
-        {featuredRecipe && (
-          <View style={homeStyles.featuredSection}>
-            <TouchableOpacity
-              style={homeStyles.featuredCard}
-              activeOpacity={0.9}
-              onPress={() =>
-                router.push({ pathname: "/(recipes)/[id]", params: { id: String(featuredRecipe.id) } })
-              }
-            >
-              <View style={homeStyles.featuredImageContainer}>
-                {featuredRecipe.image ? (
-                  <Image source={{ uri: featuredRecipe.image }} style={homeStyles.featuredImage} contentFit="cover" transition={500} />
-                ) : (
-                  <View style={[homeStyles.featuredImage, { backgroundColor: "#222" }]} />
-                )}
-                <View style={homeStyles.featuredOverlay}>
-                  <View style={homeStyles.featuredBadge}>
-                    <Text style={homeStyles.featuredBadgeText}>Featured</Text>
-                  </View>
-
-                  <View style={homeStyles.featuredContent}>
-                    <Text style={homeStyles.featuredTitle} numberOfLines={2}>
-                      {featuredRecipe.title}
-                    </Text>
-
-                    <View style={homeStyles.featuredMeta}>
-                      <View style={homeStyles.metaItem}>
-                        <Ionicons name="time-outline" size={16} color={COLORS.white} />
-                        <Text style={homeStyles.metaText}>{featuredRecipe.cookTime}</Text>
-                      </View>
-                      <View style={homeStyles.metaItem}>
-                        <Ionicons name="people-outline" size={16} color={COLORS.white} />
-                        <Text style={homeStyles.metaText}>{featuredRecipe.servings}</Text>
-                      </View>
-                      {featuredRecipe.category && (
-                        <View style={homeStyles.metaItem}>
-                          <Ionicons name="pricetag-outline" size={16} color={COLORS.white} />
-                          <Text style={homeStyles.metaText}>{featuredRecipe.category}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
+       
 
         {/* CATEGORIES (desde tags + All) */}
         {categories.length > 0 && (

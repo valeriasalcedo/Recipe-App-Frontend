@@ -22,11 +22,55 @@ export default function CreateRecipeScreen() {
     ingredients: [{ name: "", quantity: "", unit: "", notes: "" }],
     steps: [""],
     tags: [],
+    servings: 1,
+    cookTime: 1,
   };
 
-  async function handleCreate(payload) {
+  const sanitizeStr = (s) => (typeof s === "string" ? s.trim() : s);
+  const toIntMin = (v, min = 1, fallback = 1) => {
+    const n = parseInt(String(v), 10);
+    return Number.isFinite(n) && n >= min ? n : fallback;
+  };
+
+  function preparePayload(values) {
+    const title = sanitizeStr(values.title);
+    const description = sanitizeStr(values.description) || undefined;
+
+    const ingredients = (values.ingredients || [])
+      .map((i) => ({
+        name: sanitizeStr(i.name),
+        quantity: sanitizeStr(i.quantity) || undefined,
+        unit: sanitizeStr(i.unit) || undefined,
+        notes: sanitizeStr(i.notes) || undefined,
+      }))
+      .filter((i) => i.name && i.name.length > 0);
+
+    const steps = (values.steps || []).map(sanitizeStr).filter(Boolean);
+
+    const images = (values.images || []).map(sanitizeStr).filter(Boolean);
+    const tags = (values.tags || []).map(sanitizeStr).filter(Boolean);
+
+    const servings = toIntMin(values.servings, 1, 1);
+    const cookTime = toIntMin(values.cookTime, 1, 1);
+
+    const payload = { title, description, ingredients, steps, servings, cookTime };
+    if (images.length) payload.images = images;
+    if (tags.length) payload.tags = tags;
+    return payload;
+  }
+
+  async function handleCreate(values) {
     setSubmitting(true);
     try {
+      const payload = preparePayload(values);
+
+      // Validación rápida en cliente (evita 422 obvios)
+      if (!payload.title) throw new Error("El título es obligatorio.");
+      if (!payload.ingredients?.length) throw new Error("Agrega al menos 1 ingrediente con nombre.");
+      if (!payload.steps?.length) throw new Error("Agrega al menos 1 paso.");
+      if (!payload.servings || payload.servings < 1) throw new Error("Servings debe ser al menos 1.");
+      if (!payload.cookTime || payload.cookTime < 1) throw new Error("Cook time debe ser al menos 1.");
+
       const r = await fetch(`${API}/recipes`, {
         method: "POST",
         headers: {
@@ -35,10 +79,19 @@ export default function CreateRecipeScreen() {
         },
         body: JSON.stringify(payload),
       });
+
       if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
+        // Si viene de Zod (422), muestra issues detallados
+        const body = await r.json().catch(() => null);
+        if (r.status === 422 && body?.issues?.length) {
+          const msg = body.issues
+            .map((it) => `• ${Array.isArray(it.path) ? it.path.join(".") : it.path}: ${it.message}`)
+            .join("\n");
+          throw new Error(`Errores de validación:\n${msg}`);
+        }
         throw new Error(body?.error || `HTTP ${r.status}`);
       }
+
       const { recipe } = await r.json();
       alert("Receta creada");
       router.replace(`/recipes/${recipe.id}`);

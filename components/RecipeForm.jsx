@@ -16,10 +16,10 @@ import { Image } from "expo-image";
 import { COLORS } from "@/constants/colors";
 
 export default function RecipeForm({ initialValues, onSubmit, submitting }) {
-  // ------- estado local (se hidrata con initialValues) -------
+  // ------- estado local -------
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [images, setImages] = useState([]); // string[]
+  const [images, setImages] = useState([""]); // string[]
   const [ingredients, setIngredients] = useState([
     { name: "", quantity: "", unit: "", notes: "" },
   ]);
@@ -27,6 +27,8 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState("");
   const [imageErrors, setImageErrors] = useState({});
+  const [cookTime, setCookTime] = useState("1"); // guardamos como string, convertimos al enviar
+  const [servings, setServings] = useState("1");
 
   useEffect(() => {
     if (!initialValues) return;
@@ -40,6 +42,12 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     );
     setSteps(initialValues.steps?.length ? initialValues.steps : [""]);
     setTags(initialValues.tags || []);
+    setCookTime(
+      initialValues.cookTime != null ? String(initialValues.cookTime) : "1"
+    );
+    setServings(
+      initialValues.servings != null ? String(initialValues.servings) : "1"
+    );
   }, [initialValues]);
 
   // ------- helpers -------
@@ -49,6 +57,10 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     if (ingClean.length === 0) return "Agrega al menos 1 ingrediente con nombre.";
     const stepsClean = steps.map((s) => s.trim()).filter(Boolean);
     if (stepsClean.length === 0) return "Agrega al menos 1 paso.";
+    const ct = parseInt(cookTime || "0", 10);
+    if (!Number.isFinite(ct) || ct < 1) return "Cook time debe ser al menos 1.";
+    const sv = parseInt(servings || "0", 10);
+    if (!Number.isFinite(sv) || sv < 1) return "Servings debe ser al menos 1.";
     return null;
   };
 
@@ -65,6 +77,8 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
         }))
         .filter((i) => i.name),
       steps: steps.map((s) => s.trim()).filter(Boolean),
+      cookTime: Math.max(1, parseInt(cookTime || "1", 10)),
+      servings: Math.max(1, parseInt(servings || "1", 10)),
     };
     const imageList = images.map((u) => u.trim()).filter(Boolean);
     if (imageList.length) payload.images = imageList;
@@ -116,6 +130,8 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
   };
   const removeTag = (t) => setTags((arr) => arr.filter((x) => x !== t));
 
+  const onlyDigits = (t) => t.replace(/[^0-9]/g, "");
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: COLORS.background }}
@@ -135,6 +151,26 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
           />
         </Card>
 
+        {/* Tiempo y porciones */}
+        <Card>
+          <Label icon="hourglass-outline" text="Cook time (min)" />
+          <Input
+            keyboardType="numeric"
+            inputMode="numeric"
+            value={cookTime}
+            onChangeText={(t) => setCookTime(onlyDigits(t))}
+            placeholder="Minutos"
+          />
+          <Label icon="people-outline" text="Servings" style={{ marginTop: 10 }} />
+          <Input
+            keyboardType="numeric"
+            inputMode="numeric"
+            value={servings}
+            onChangeText={(t) => setServings(onlyDigits(t))}
+            placeholder="Número de porciones"
+          />
+        </Card>
+
         {/* Imágenes */}
         <Card>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -151,7 +187,15 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 autoCapitalize="none"
               />
               {!!url && (
-                <View style={{ height: 160, borderRadius: 12, overflow: "hidden", marginTop: 8, backgroundColor: "#111" }}>
+                <View
+                  style={{
+                    height: 160,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    marginTop: 8,
+                    backgroundColor: "#111",
+                  }}
+                >
                   <Image
                     source={{ uri: url }}
                     style={{ width: "100%", height: "100%" }}
@@ -162,7 +206,9 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 </View>
               )}
               {imageErrors[idx] && (
-                <Text style={{ color: "#ffb3b3", marginTop: 6 }}>No se pudo cargar la imagen. Verifica la URL.</Text>
+                <Text style={{ color: "#ffb3b3", marginTop: 6 }}>
+                  No se pudo cargar la imagen. Verifica la URL.
+                </Text>
               )}
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                 <TouchableOpacity onPress={() => removeImage(idx)} style={smallBtn("#2b1b1b")}>
@@ -201,7 +247,9 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 borderColor: "rgba(255,255,255,0.08)",
               }}
             >
-              <Text style={{ color: COLORS.textLight, marginBottom: 8 }}>Ingrediente #{idx + 1}</Text>
+              <Text style={{ color: COLORS.textLight, marginBottom: 8 }}>
+                Ingrediente #{idx + 1}
+              </Text>
               <Input
                 value={ing.name}
                 onChangeText={(t) => updateIngredient(idx, "name", t)}
@@ -236,7 +284,9 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 {idx === ingredients.length - 1 && (
                   <TouchableOpacity onPress={addIngredient} style={ghostBtn}>
                     <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
-                    <Text style={{ color: COLORS.primary, marginLeft: 6 }}>Agregar ingrediente</Text>
+                    <Text style={{ color: COLORS.primary, marginLeft: 6 }}>
+                      Agregar ingrediente
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -248,7 +298,10 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
         <Card>
           <Label icon="book-outline" text="Pasos" />
           {steps.map((val, idx) => (
-            <View key={`step-${idx}`} style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: 10 }}>
+            <View
+              key={`step-${idx}`}
+              style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: 10 }}
+            >
               <View style={numBadge}>
                 <Text style={{ color: "#fff", fontWeight: "700" }}>{idx + 1}</Text>
               </View>
@@ -262,7 +315,10 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 <Ionicons name="trash-outline" size={16} color="#fff" />
               </TouchableOpacity>
               {idx === steps.length - 1 && (
-                <TouchableOpacity onPress={addStep} style={iconSquareBtn("rgba(255,255,255,0.06)")}>
+                <TouchableOpacity
+                  onPress={addStep}
+                  style={iconSquareBtn("rgba(255,255,255,0.06)")}
+                >
                   <Ionicons name="add-outline" size={18} color="#fff" />
                 </TouchableOpacity>
               )}
@@ -324,114 +380,156 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     </KeyboardAvoidingView>
   );
 }
+/* ---------- THEME ---------- */
+const UI = {
+  surface: "#83a58dff",
+  surface2: "#7fcaa1ff",
+  border: "rgba(255,255,255,0.06)",
+  borderFocus: "#5cff82ff",
+  text: "#000000ff",
+  textLight: "rgba(0, 0, 0, 0.8)",
+  textMuted: "rgba(0, 0, 0, 0.55)",
+  shadow: "rgba(211, 233, 225, 0.35)",
+};
 
-/* ---------- Sub-UI ---------- */
-const Card = ({ children }) => (
-  <View
-    style={{
-      borderRadius: 16,
-      backgroundColor: "#0f0f0f",
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.06)",
-      padding: 12,
-      marginBottom: 16,
-    }}
+/* ---------- Card con borde degradado sutil ---------- */
+const Card = ({ children, style }) => (
+  <LinearGradient
+    colors={["rgba(124,92,255,0.18)", "rgba(124,92,255,0.04)"]}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 1 }}
+    style={[{
+      padding: 1,
+      borderRadius: 18,
+      marginBottom: 18,
+    }, style]}
   >
-    {children}
-  </View>
+    <View
+      style={{
+        borderRadius: 17,
+        backgroundColor: UI.surface,
+        borderWidth: 1,
+        borderColor: UI.border,
+        padding: 14,
+        shadowColor: UI.shadow,
+        shadowOpacity: 0.5,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 4,
+      }}
+    >
+      {children}
+    </View>
+  </LinearGradient>
 );
 
-const Label = ({ icon, text, style }) => (
-  <View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }, style]}>
+/* ---------- Label con icono pastilla ---------- */
+const Label = ({ icon, text, style, right }) => (
+  <View
+    style={[
+      { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+      style,
+    ]}
+  >
     <LinearGradient
-      colors={["#2c2c2c", "#1a1a1a"]}
-      style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}
+      colors={["#254227ff", "#183022ff"]}
+      style={{
+        width: 28, height: 28, borderRadius: 14,
+        alignItems: "center", justifyContent: "center",
+        marginRight: 10,
+      }}
     >
       <Ionicons name={icon} size={16} color="#fff" />
     </LinearGradient>
-    <Text style={{ color: COLORS.textLight }}>{text}</Text>
+    <Text style={{ color: UI.textLight, fontWeight: "600", letterSpacing: 0.3 }}>
+      {text}
+    </Text>
+    {!!right && <View style={{ marginLeft: "auto" }}>{right}</View>}
   </View>
 );
 
-const Input = ({ style, ...props }) => (
-  <TextInput
-    {...props}
-    style={[
-      {
-        backgroundColor: "#121212",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-        color: "#fff",
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        borderRadius: 12,
-      },
-      style,
-    ]}
-    placeholderTextColor={COLORS.textMuted}
-    autoCorrect={false}
-  />
-);
+/* ---------- Input con estado de focus ---------- */
+const Input = ({ style, ...props }) => {
+  const [focused, setFocused] = React.useState(false);
+  return (
+    <TextInput
+      {...props}
+      onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
+      onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
+      style={[
+        {
+          backgroundColor: UI.surface2,
+          borderWidth: 1,
+          borderColor: focused ? UI.borderFocus : UI.border,
+          color: UI.text,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          borderRadius: 14,
+          shadowColor: focused ? UI.borderFocus : "transparent",
+          shadowOpacity: focused ? 0.35 : 0,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        style,
+      ]}
+      placeholderTextColor={UI.textMuted}
+      autoCorrect={false}
+    />
+  );
+};
 
-/* ---------- Styles pequeños ---------- */
-const iconSquareBtn = (bg) => ({
-  width: 36,
-  height: 36,
-  borderRadius: 10,
-  backgroundColor: bg,
-  alignItems: "center",
-  justifyContent: "center",
+/* ---------- Botones chicos y utilidades ---------- */
+const iconSquareBtn = (bg = "rgba(255,255,255,0.06)") => ({
+  width: 38, height: 38, borderRadius: 12,
+  backgroundColor: bg, alignItems: "center", justifyContent: "center",
+  borderWidth: 1, borderColor: UI.border,
 });
 
-const smallBtn = (bg) => ({
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 6,
-  paddingHorizontal: 10,
-  paddingVertical: 8,
-  borderRadius: 10,
-  backgroundColor: bg,
+const smallBtn = (bg = "#1b2b22ff") => ({
+  flexDirection: "row", alignItems: "center", gap: 8,
+  paddingHorizontal: 12, paddingVertical: 10,
+  borderRadius: 12, backgroundColor: bg,
+  borderWidth: 1, borderColor: UI.border,
 });
 
-const smallBtnText = { color: "#fff", fontSize: 12, fontWeight: "600" };
+const smallBtnText = { color: "#fff", fontSize: 12, fontWeight: "700", letterSpacing: 0.3 };
 
 const ghostBtn = {
   alignSelf: "flex-start",
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-  borderRadius: 10,
-  borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.12)",
-  flexDirection: "row",
-  alignItems: "center",
+  paddingHorizontal: 12, paddingVertical: 10,
+  borderRadius: 12,
+  borderWidth: 1, borderColor: UI.border,
+  backgroundColor: "rgba(255,255,255,0.04)",
+  flexDirection: "row", alignItems: "center", gap: 8,
 };
 
 const numBadge = {
-  width: 24,
-  height: 24,
-  borderRadius: 12,
-  backgroundColor: COLORS.primary,
-  alignItems: "center",
-  justifyContent: "center",
+  width: 26, height: 26, borderRadius: 13,
+  backgroundColor: "#1c5f2cff",
+  alignItems: "center", justifyContent: "center",
+  borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
 };
 
 const chip = {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 4,
-  paddingHorizontal: 10,
-  paddingVertical: 6,
+  flexDirection: "row", alignItems: "center", gap: 6,
+  paddingHorizontal: 12, paddingVertical: 7,
   borderRadius: 999,
-  backgroundColor: "rgba(255,255,255,0.08)",
+  backgroundColor: "rgba(124,92,255,0.12)",
+  borderWidth: 1, borderColor: "rgba(124,92,255,0.35)",
 };
 
 const submitBtn = {
-  height: 54,
-  borderRadius: 14,
+  height: 56,
+  borderRadius: 16,
   alignItems: "center",
   justifyContent: "center",
   flexDirection: "row",
-  gap: 8,
+  gap: 10,
+  shadowColor: UI.shadow,
+  shadowOpacity: 0.45,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 5,
 };
 
-const submitText = { color: "#fff", fontSize: 16, fontWeight: "700" };
+const submitText = { color: "#fff", fontSize: 16, fontWeight: "800", letterSpacing: 0.4 };

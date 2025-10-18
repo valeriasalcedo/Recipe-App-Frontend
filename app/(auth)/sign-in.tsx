@@ -11,8 +11,7 @@ import { useAuth } from "../../src/auth/AuthContext";
 
 const SignInScreen = () => {
   const router = useRouter();
-  const { login, loading: authLoading } = useAuth(); // login(email, password) del contexto
-
+  const { login, loading: authLoading } = useAuth(); 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,8 +22,8 @@ const SignInScreen = () => {
     if (!email || !password) return Alert.alert("Error", "Please fill in all fields");
     try {
       setSubmitting(true);
-      await login(email, password);        // ⬅️ esto debe setear tokens + user internamente
-      router.replace("/");                 // ⬅️ mandar a Home (tabs/index)
+      await login(email, password);        
+      router.replace("/");                 
     } catch (e: any) {
       Alert.alert("Error", e?.message || "Sign in failed");
     } finally {
@@ -40,9 +39,6 @@ const SignInScreen = () => {
         keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
       >
         <ScrollView contentContainerStyle={authStyles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={authStyles.imageContainer}>
-            <Image source={require("../../assets/images/i1.png")} style={authStyles.image} contentFit="contain" />
-          </View>
 
           <Text style={authStyles.title}>Welcome Back</Text>
 

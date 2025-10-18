@@ -41,9 +41,7 @@ const SignUpScreen = () => {
         style={authStyles.keyboardView}
       >
         <ScrollView contentContainerStyle={authStyles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={authStyles.imageContainer}>
-            <Image source={require("../../assets/images/i2.png")} style={authStyles.image} contentFit="contain" />
-          </View>
+          
 
           <Text style={authStyles.title}>Create Account</Text>
 
