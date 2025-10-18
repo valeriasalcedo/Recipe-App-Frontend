@@ -5,6 +5,7 @@ import { shadow, textShadowSoft } from "./shadows";
 
 const { height } = Dimensions.get("window");
 
+
 export const recipeDetailStyles = StyleSheet.create({
   container: {
     flex: 1,

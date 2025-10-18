@@ -2,6 +2,7 @@ import { StyleSheet } from "react-native";
 import { COLORS } from "../../constants/colors";
 import { shadow } from "./shadows";
 
+
 export const favoritesStyles = StyleSheet.create({
   container: {
     flex: 1,

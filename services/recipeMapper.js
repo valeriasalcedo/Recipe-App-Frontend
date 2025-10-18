@@ -10,6 +10,7 @@ export function toCardVM(apiRecipe) {
   };
 }
 
+
 export function toDetailVM(apiRecipe) {
   const ingredientsAsText = (apiRecipe.ingredients || []).map((i) => {
     const main = [i.quantity, i.unit, i.name].filter(Boolean).join(" ").trim();

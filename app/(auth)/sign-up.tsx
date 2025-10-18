@@ -43,6 +43,7 @@ const SignUpScreen = () => {
         <ScrollView contentContainerStyle={authStyles.scrollContent} showsVerticalScrollIndicator={false}>
           
 
+
           <Text style={authStyles.title}>Create Account</Text>
 
           <View style={authStyles.formContainer}>

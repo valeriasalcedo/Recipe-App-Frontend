@@ -99,6 +99,7 @@ export default function SearchScreen() {
         </View>
       </View>
 
+
       <View style={searchStyles.resultsSection}>
         <View style={searchStyles.resultsHeader}>
           <Text style={searchStyles.resultsTitle}>

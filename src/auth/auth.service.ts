@@ -29,6 +29,7 @@ export async function login(email: string, password: string) {
   return data.user;
 }
 
+
 export async function register(email: string, password: string, name: string) {
   const res = await fetch(`${api.baseURL}/auth/register`, {
     method: "POST",

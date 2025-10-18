@@ -156,6 +156,7 @@ export default function RecipeDetailScreen() {
             </View>
           </View>
 
+
           {/* INSTRUCTIONS */}
           <View style={recipeDetailStyles.sectionContainer}>
             <View style={recipeDetailStyles.sectionTitleRow}>

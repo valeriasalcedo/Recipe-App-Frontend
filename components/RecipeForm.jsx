@@ -16,8 +16,8 @@ import { Image } from "expo-image";
 import { COLORS } from "@/constants/colors";
 
 export default function RecipeForm({ initialValues, onSubmit, submitting }) {
-  // ------- estado local -------
-  const [title, setTitle] = useState("");
+
+    const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState([""]); // string[]
   const [ingredients, setIngredients] = useState([

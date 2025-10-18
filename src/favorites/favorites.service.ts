@@ -1,4 +1,3 @@
-// src/favorites/favorites.service.ts
 import { storage } from "@/src/auth/storage";
 
 export type FavoriteRecipe = {

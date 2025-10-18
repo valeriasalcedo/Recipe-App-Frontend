@@ -37,6 +37,7 @@ const FavoritesScreen = () => {
     loadFavorites();
   }, [user?.id]);
 
+  
   const handleSignOut = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },

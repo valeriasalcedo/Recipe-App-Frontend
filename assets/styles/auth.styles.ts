@@ -91,3 +91,4 @@ export const authStyles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
