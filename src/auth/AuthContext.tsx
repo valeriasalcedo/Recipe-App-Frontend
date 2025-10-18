@@ -7,7 +7,7 @@ type User = { id: string; email: string; name?: string; bio?: string };
 
 type AuthCtx = {
   user: User | null;
-  accessToken: string | null;        // 🔹 nuevo
+  accessToken: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
