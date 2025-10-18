@@ -13,7 +13,7 @@ type AuthCtx = {
 const AuthContext = createContext<AuthCtx>({} as any);
 
 // Ajusta según tu entorno (web: localhost, emulador Android: 10.0.2.2)
-const API = "http://localhost:4000";
+const API = "https://backend-recipeapp-production.up.railway.app";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
