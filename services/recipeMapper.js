@@ -1,4 +1,3 @@
-// services/recipeMapper.ts
 export function toCardVM(apiRecipe) {
   return {
     id: apiRecipe.id,
