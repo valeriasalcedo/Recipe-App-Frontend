@@ -40,7 +40,7 @@ const FavoritesScreen = () => {
   const handleSignOut = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: logout },
+      { text: "Logout", style: "destructive", onPress: async () => { await logout(); } },
     ]);
   };
 
@@ -51,7 +51,7 @@ const FavoritesScreen = () => {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={favoritesStyles.header}>
           <Text style={favoritesStyles.title}>Favorites</Text>
-          <TouchableOpacity style={favoritesStyles.logoutButton} onPress={handleSignOut}>
+          <TouchableOpacity style={favoritesStyles.logoutButton} onPress={ handleSignOut }>
             <Ionicons name="log-out-outline" size={22} color={COLORS.text} />
           </TouchableOpacity>
         </View>
