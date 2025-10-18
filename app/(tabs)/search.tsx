@@ -1,80 +1,79 @@
-import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList } from "react-native";
-import { MealAPI } from "../../services/mealAPI";
-import { useDebounce } from "../../hooks/useDebounce";
-import { searchStyles } from "../../assets/styles/search.styles";
-import { COLORS } from "../../constants/colors";
+import { useEffect, useMemo, useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, FlatList, Platform } from "react-native";
+import { useDebounce } from "@/hooks/useDebounce";
+import { searchStyles } from "@/assets/styles/search.styles";
+import { COLORS } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
-import RecipeCard from "../../components/RecipeCard";
-import LoadingSpinner from "../../components/LoadingSpinner";
+import RecipeCard from "@/components/RecipeCard";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import { useAuth } from "@/src/auth/AuthContext";
+import { toCardVM } from "@/services/recipeMapper";
 
-const SearchScreen = () => {
+const API = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+
+export default function SearchScreen() {
+  const { accessToken } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [recipes, setRecipes] = useState([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  const performSearch = async (query) => {
-    // if no search query
-    if (!query.trim()) {
-      const randomMeals = await MealAPI.getRandomMeals(12);
-      return randomMeals
-        .map((meal) => MealAPI.transformMealData(meal))
-        .filter((meal) => meal !== null);
+  async function fetchRecipes(q: string) {
+    const url = new URL(`${API}/recipes`);
+    url.searchParams.set("scope", "general"); // TODAS
+    url.searchParams.set("limit", "100");
+    if (q.trim()) url.searchParams.set("q", q.trim());
+
+    const r = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json(); // {items,total,...}
+    const cards = (data.items || []).map(toCardVM);
+
+    // si no hay query, muestra “populares”: baraja y toma 12
+    if (!q.trim()) {
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+      }
+      return cards.slice(0, 12);
     }
+    return cards.slice(0, 50);
+  }
 
-    // search by name first, then by ingredient if no results
-
-    const nameResults = await MealAPI.searchMealsByName(query);
-    let results = nameResults;
-
-    if (results.length === 0) {
-      const ingredientResults = await MealAPI.filterByIngredient(query);
-      results = ingredientResults;
-    }
-
-    return results
-      .slice(0, 12)
-      .map((meal) => MealAPI.transformMealData(meal))
-      .filter((meal) => meal !== null);
-  };
-
+  // carga inicial (populares)
   useEffect(() => {
-    const loadInitialData = async () => {
+    (async () => {
       try {
-        const results = await performSearch("");
+        const results = await fetchRecipes("");
         setRecipes(results);
-      } catch (error) {
-        console.error("Error loading initial data:", error);
+      } catch (e) {
+        console.error("Error loading initial data:", e);
       } finally {
         setInitialLoading(false);
       }
-    };
+    })();
+  }, [accessToken]);
 
-    loadInitialData();
-  }, []);
-
+  // búsqueda
   useEffect(() => {
     if (initialLoading) return;
-
-    const handleSearch = async () => {
+    (async () => {
       setLoading(true);
-
       try {
-        const results = await performSearch(debouncedSearchQuery);
+        const results = await fetchRecipes(debouncedSearchQuery);
         setRecipes(results);
-      } catch (error) {
-        console.error("Error searching:", error);
+      } catch (e) {
+        console.error("Error searching:", e);
         setRecipes([]);
       } finally {
         setLoading(false);
       }
-    };
-
-    handleSearch();
-  }, [debouncedSearchQuery, initialLoading]);
+    })();
+  }, [debouncedSearchQuery, initialLoading, accessToken]);
 
   if (initialLoading) return <LoadingSpinner message="Loading recipes..." />;
 
@@ -82,12 +81,7 @@ const SearchScreen = () => {
     <View style={searchStyles.container}>
       <View style={searchStyles.searchSection}>
         <View style={searchStyles.searchContainer}>
-          <Ionicons
-            name="search"
-            size={20}
-            color={COLORS.textLight}
-            style={searchStyles.searchIcon}
-          />
+          <Ionicons name="search" size={20} color={COLORS.textLight} style={searchStyles.searchIcon} />
           <TextInput
             style={searchStyles.searchInput}
             placeholder="Search recipes, ingredients..."
@@ -95,6 +89,7 @@ const SearchScreen = () => {
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
+            autoCorrect={false}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery("")} style={searchStyles.clearButton}>
@@ -120,7 +115,7 @@ const SearchScreen = () => {
           <FlatList
             data={recipes}
             renderItem={({ item }) => <RecipeCard recipe={item} />}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => String(item.id)}
             numColumns={2}
             columnWrapperStyle={searchStyles.row}
             contentContainerStyle={searchStyles.recipesGrid}
@@ -131,8 +126,7 @@ const SearchScreen = () => {
       </View>
     </View>
   );
-};
-export default SearchScreen;
+}
 
 function NoResultsFound() {
   return (

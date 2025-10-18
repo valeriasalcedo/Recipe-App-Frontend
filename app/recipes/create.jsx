@@ -127,7 +127,7 @@ const CreateRecipeScreen = () => {
       const recipe = await RecipeAPI.createRecipe(payload, accessToken);
       Alert.alert("Éxito", "Receta creada correctamente.");
       const newId = recipe?.id;
-      if (newId) router.replace({ pathname: "/(recipes)/[id]", params: { id: String(newId) } });
+      if (newId) router.replace({ pathname: "/recipes/[id]", params: { id: String(newId) } });
       else router.back();
     } catch (e) {
       console.error(e);
