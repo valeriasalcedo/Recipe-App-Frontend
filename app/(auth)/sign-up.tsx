@@ -24,7 +24,7 @@ const SignUpScreen = () => {
 
     setLoading(true);
     try {
-      await register(name.trim(), email.trim(), password);
+      await register(email.trim(), password, name.trim());
       router.replace("/");
     } catch (err: any) {
       Alert.alert("Error", err?.body?.message || err?.message || "Failed to create account");

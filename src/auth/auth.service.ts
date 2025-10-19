@@ -5,7 +5,6 @@ export type BackendUser = {
   id: string;
   email: string;
   name: string;
-  bio?: string;
   createdAt: string;
   updatedAt: string;
 };
