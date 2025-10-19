@@ -9,27 +9,41 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { COLORS } from "@/constants/colors";
+import { useAuth } from "@/src/auth/AuthContext";
+
+const API_BASE =
+  Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
 
 export default function RecipeForm({ initialValues, onSubmit, submitting }) {
-
-    const [title, setTitle] = useState("");
+  // -------- STATE CAMPOS --------
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState([""]); // string[]
   const [ingredients, setIngredients] = useState([
     { name: "", quantity: "", unit: "", notes: "" },
   ]);
   const [steps, setSteps] = useState([""]);
-  const [tags, setTags] = useState([]);
-  const [tagInput, setTagInput] = useState("");
   const [imageErrors, setImageErrors] = useState({});
-  const [cookTime, setCookTime] = useState("1"); // guardamos como string, convertimos al enviar
+  const [cookTime, setCookTime] = useState("1"); // como string
   const [servings, setServings] = useState("1");
 
+  // -------- GRUPOS --------
+  const { accessToken } = useAuth();
+  const [groups, setGroups] = useState([]); // [{id,name,description,...}]
+  const [selectedGroupIds, setSelectedGroupIds] = useState(new Set());
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [gName, setGName] = useState("");
+  const [gDesc, setGDesc] = useState("");
+  const [creatingGroup, setCreatingGroup] = useState(false);
+
+  // -------- EFFECTS --------
   useEffect(() => {
     if (!initialValues) return;
     setTitle(initialValues.title || "");
@@ -41,16 +55,30 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
         : [{ name: "", quantity: "", unit: "", notes: "" }]
     );
     setSteps(initialValues.steps?.length ? initialValues.steps : [""]);
-    setTags(initialValues.tags || []);
     setCookTime(
       initialValues.cookTime != null ? String(initialValues.cookTime) : "1"
     );
     setServings(
       initialValues.servings != null ? String(initialValues.servings) : "1"
     );
+
+    // Hidratación de grupos (si edición)
+    if (Array.isArray(initialValues.groupIds) && initialValues.groupIds.length) {
+      setSelectedGroupIds(new Set(initialValues.groupIds.map(String)));
+    } else if (Array.isArray(initialValues.groups) && initialValues.groups.length) {
+      setSelectedGroupIds(new Set(initialValues.groups.map(String)));
+    } else {
+      setSelectedGroupIds(new Set());
+    }
   }, [initialValues]);
 
-  // ------- helpers -------
+  useEffect(() => {
+    fetchGroups();
+  }, [accessToken]);
+
+  // -------- HELPERS --------
+  const onlyDigits = (t) => t.replace(/[^0-9]/g, "");
+
   const validate = () => {
     if (!title.trim()) return "El título es obligatorio.";
     const ingClean = ingredients.filter((i) => i.name?.trim());
@@ -76,24 +104,32 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
           notes: i.notes?.trim() || undefined,
         }))
         .filter((i) => i.name),
-      steps: steps.map((s) => s.trim()).filter(Boolean),
-      cookTime: Math.max(1, parseInt(cookTime || "1", 10)),
-      servings: Math.max(1, parseInt(servings || "1", 10)),
     };
+
+    const stepsList = steps.map((s) => s.trim()).filter(Boolean);
+    if (stepsList.length) payload.steps = stepsList;
+
+    // numéricos
+    payload.cookTime = Math.max(1, parseInt(cookTime || "1", 10));
+    payload.servings = Math.max(1, parseInt(servings || "1", 10));
+
+    // imágenes
     const imageList = images.map((u) => u.trim()).filter(Boolean);
     if (imageList.length) payload.images = imageList;
-    if (tags.length) payload.tags = tags;
+
+    // grupos (vuelven al padre para asociar tras crear/editar)
+    payload.groupIds = Array.from(selectedGroupIds);
+
     return payload;
   };
 
-  // ------- actions -------
   const handleSubmit = () => {
     const err = validate();
     if (err) return alert(err);
     onSubmit(buildPayload());
   };
 
-  // images
+  // -------- IMÁGENES --------
   const addImage = () => setImages((arr) => [...arr, ""]);
   const updateImage = (idx, value) => {
     setImages((arr) => arr.map((u, i) => (i === idx ? value : u)));
@@ -108,36 +144,97 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     });
   };
 
-  // ingredients
+  // -------- INGREDIENTES --------
   const addIngredient = () =>
-    setIngredients((arr) => [...arr, { name: "", quantity: "", unit: "", notes: "" }]);
+    setIngredients((arr) => [
+      ...arr,
+      { name: "", quantity: "", unit: "", notes: "" },
+    ]);
   const updateIngredient = (idx, field, value) =>
-    setIngredients((arr) => arr.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
+    setIngredients((arr) =>
+      arr.map((it, i) => (i === idx ? { ...it, [field]: value } : it))
+    );
   const removeIngredient = (idx) =>
     setIngredients((arr) => arr.filter((_, i) => i !== idx));
 
-  // steps
+  // -------- PASOS --------
   const addStep = () => setSteps((arr) => [...arr, ""]);
-  const updateStep = (idx, value) => setSteps((arr) => arr.map((s, i) => (i === idx ? value : s)));
-  const removeStep = (idx) => setSteps((arr) => arr.filter((_, i) => i !== idx));
+  const updateStep = (idx, value) =>
+    setSteps((arr) => arr.map((s, i) => (i === idx ? value : s)));
+  const removeStep = (idx) =>
+    setSteps((arr) => arr.filter((_, i) => i !== idx));
 
-  // tags
-  const pushTag = () => {
-    const t = tagInput.trim();
-    if (!t) return;
-    if (!tags.includes(t)) setTags((arr) => [...arr, t]);
-    setTagInput("");
+  // -------- GRUPOS: API --------
+  async function fetchGroups() {
+    try {
+      const r = await fetch(`${API_BASE}/groups?page=1&limit=100`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setGroups(data.items || []);
+    } catch (e) {
+      console.log("No se pudieron cargar grupos", e);
+      setGroups([]);
+    }
+  }
+
+  const toggleGroup = (id) => {
+    setSelectedGroupIds((s) => {
+      const n = new Set(s);
+      if (n.has(String(id))) n.delete(String(id));
+      else n.add(String(id));
+      return n;
+    });
   };
-  const removeTag = (t) => setTags((arr) => arr.filter((x) => x !== t));
 
-  const onlyDigits = (t) => t.replace(/[^0-9]/g, "");
+  async function createGroupInline() {
+    const name = (gName || "").trim();
+    if (!name) {
+      Alert.alert("Atención", "Escribe un nombre para el grupo.");
+      return;
+    }
+    setCreatingGroup(true);
+    try {
+      const r = await fetch(`${API_BASE}/groups`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          name,
+          description: (gDesc || "").trim() || undefined,
+        }),
+      });
+      const body = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(body?.error || body?.message || `HTTP ${r.status}`);
 
+      // refresco + selección del recién creado
+      await fetchGroups();
+      if (body?.group?.id) {
+        setSelectedGroupIds((s) => new Set([...s, String(body.group.id)]));
+      }
+      setGroupModalOpen(false);
+      setGName("");
+      setGDesc("");
+    } catch (e) {
+      Alert.alert("Error", String(e?.message || "No se pudo crear el grupo"));
+    } finally {
+      setCreatingGroup(false);
+    }
+  }
+
+  // -------- UI --------
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: COLORS.background }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Título & Descripción */}
         <Card>
           <Label icon="restaurant-outline" text="Título" />
@@ -332,35 +429,47 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
           )}
         </Card>
 
-        {/* Tags */}
+        {/* GRUPOS */}
         <Card>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <Label icon="pricetags-outline" text="Tags" />
-            <Text style={{ color: COLORS.textLight }}>(opcional)</Text>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Input
-              style={{ flex: 1 }}
-              value={tagInput}
-              onChangeText={setTagInput}
-              placeholder="Agrega una etiqueta y presiona +"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity onPress={pushTag} style={iconSquareBtn("rgba(255,255,255,0.06)")}>
-              <Ionicons name="add-outline" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          {tags.length > 0 && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-              {tags.map((t) => (
-                <View key={t} style={chip}>
-                  <Text style={{ color: "#fff" }}>{t}</Text>
-                  <TouchableOpacity onPress={() => removeTag(t)} style={{ marginLeft: 6 }}>
-                    <Ionicons name="close" size={14} color="#fff" />
+          <Label
+            icon="albums-outline"
+            text="Grupos"
+            right={
+              <TouchableOpacity onPress={() => setGroupModalOpen(true)} style={ghostBtn}>
+                <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
+                <Text style={{ color: COLORS.primary, marginLeft: 6 }}>Crear grupo</Text>
+              </TouchableOpacity>
+            }
+          />
+          {groups.length === 0 ? (
+            <Text style={{ color: "#bbb" }}>
+              No tienes grupos. Crea uno con el botón “Crear grupo”.
+            </Text>
+          ) : (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {groups.map((g) => {
+                const active = selectedGroupIds.has(String(g.id));
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    onPress={() => toggleGroup(g.id)}
+                    style={[
+                      chip,
+                      active && {
+                        backgroundColor: "rgba(124,92,255,0.25)",
+                        borderColor: "#7C5CFF",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={active ? "checkmark-circle" : "ellipse-outline"}
+                      size={14}
+                      color="#fff"
+                    />
+                    <Text style={{ color: "#fff" }}>{g.name}</Text>
                   </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </Card>
@@ -377,9 +486,72 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
           </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* MODAL CREAR GRUPO */}
+      <Modal
+        visible={groupModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGroupModalOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              borderRadius: 16,
+              backgroundColor: "#111",
+              padding: 16,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 12 }}>
+              Crear grupo
+            </Text>
+
+            <Text style={{ color: "#aaa", marginBottom: 6 }}>Nombre</Text>
+            <Input value={gName} onChangeText={setGName} placeholder="Ej. Almuerzos" />
+
+            <Text style={{ color: "#aaa", marginTop: 12, marginBottom: 6 }}>
+              Descripción (opcional)
+            </Text>
+            <Input
+              value={gDesc}
+              onChangeText={setGDesc}
+              placeholder="Breve descripción"
+              multiline
+            />
+
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+              <TouchableOpacity onPress={() => setGroupModalOpen(false)} style={ghostBtn}>
+                <Text style={{ color: "#fff" }}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={createGroupInline}
+                disabled={creatingGroup}
+                style={[smallBtn(COLORS.primary), { opacity: creatingGroup ? 0.6 : 1 }]}
+              >
+                <Ionicons name="save-outline" size={16} color="#fff" />
+                <Text style={smallBtnText}>{creatingGroup ? "Guardando..." : "Guardar"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
+
 /* ---------- THEME ---------- */
 const UI = {
   surface: "#83a58dff",
@@ -398,11 +570,14 @@ const Card = ({ children, style }) => (
     colors={["rgba(124,92,255,0.18)", "rgba(124,92,255,0.04)"]}
     start={{ x: 0, y: 0 }}
     end={{ x: 1, y: 1 }}
-    style={[{
-      padding: 1,
-      borderRadius: 18,
-      marginBottom: 18,
-    }, style]}
+    style={[
+      {
+        padding: 1,
+        borderRadius: 18,
+        marginBottom: 18,
+      },
+      style,
+    ]}
   >
     <View
       style={{
@@ -434,8 +609,11 @@ const Label = ({ icon, text, style, right }) => (
     <LinearGradient
       colors={["#254227ff", "#183022ff"]}
       style={{
-        width: 28, height: 28, borderRadius: 14,
-        alignItems: "center", justifyContent: "center",
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
         marginRight: 10,
       }}
     >
@@ -454,8 +632,14 @@ const Input = ({ style, ...props }) => {
   return (
     <TextInput
       {...props}
-      onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
-      onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
+      onFocus={(e) => {
+        setFocused(true);
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        props.onBlur?.(e);
+      }}
       style={[
         {
           backgroundColor: UI.surface2,
@@ -480,42 +664,69 @@ const Input = ({ style, ...props }) => {
 
 /* ---------- Botones chicos y utilidades ---------- */
 const iconSquareBtn = (bg = "rgba(255,255,255,0.06)") => ({
-  width: 38, height: 38, borderRadius: 12,
-  backgroundColor: bg, alignItems: "center", justifyContent: "center",
-  borderWidth: 1, borderColor: UI.border,
+  width: 38,
+  height: 38,
+  borderRadius: 12,
+  backgroundColor: bg,
+  alignItems: "center",
+  justifyContent: "center",
+  borderWidth: 1,
+  borderColor: UI.border,
 });
 
 const smallBtn = (bg = "#1b2b22ff") => ({
-  flexDirection: "row", alignItems: "center", gap: 8,
-  paddingHorizontal: 12, paddingVertical: 10,
-  borderRadius: 12, backgroundColor: bg,
-  borderWidth: 1, borderColor: UI.border,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+  paddingHorizontal: 12,
+  paddingVertical: 10,
+  borderRadius: 12,
+  backgroundColor: bg,
+  borderWidth: 1,
+  borderColor: UI.border,
 });
 
-const smallBtnText = { color: "#fff", fontSize: 12, fontWeight: "700", letterSpacing: 0.3 };
+const smallBtnText = {
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: "700",
+  letterSpacing: 0.3,
+};
 
 const ghostBtn = {
   alignSelf: "flex-start",
-  paddingHorizontal: 12, paddingVertical: 10,
+  paddingHorizontal: 12,
+  paddingVertical: 10,
   borderRadius: 12,
-  borderWidth: 1, borderColor: UI.border,
+  borderWidth: 1,
+  borderColor: UI.border,
   backgroundColor: "rgba(255,255,255,0.04)",
-  flexDirection: "row", alignItems: "center", gap: 8,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
 };
 
 const numBadge = {
-  width: 26, height: 26, borderRadius: 13,
+  width: 26,
+  height: 26,
+  borderRadius: 13,
   backgroundColor: "#1c5f2cff",
-  alignItems: "center", justifyContent: "center",
-  borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+  alignItems: "center",
+  justifyContent: "center",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.15)",
 };
 
 const chip = {
-  flexDirection: "row", alignItems: "center", gap: 6,
-  paddingHorizontal: 12, paddingVertical: 7,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+  paddingHorizontal: 12,
+  paddingVertical: 7,
   borderRadius: 999,
   backgroundColor: "rgba(124,92,255,0.12)",
-  borderWidth: 1, borderColor: "rgba(124,92,255,0.35)",
+  borderWidth: 1,
+  borderColor: "rgba(124,92,255,0.35)",
 };
 
 const submitBtn = {
@@ -532,4 +743,9 @@ const submitBtn = {
   elevation: 5,
 };
 
-const submitText = { color: "#fff", fontSize: 16, fontWeight: "800", letterSpacing: 0.4 };
+const submitText = {
+  color: "#fff",
+  fontSize: 16,
+  fontWeight: "800",
+  letterSpacing: 0.4,
+};

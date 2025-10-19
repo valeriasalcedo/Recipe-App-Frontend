@@ -1,17 +1,14 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  View, Text, Alert, ScrollView, TouchableOpacity, ActivityIndicator, Platform,
-} from "react-native";
+import { View, Text, Alert, ScrollView, TouchableOpacity, ActivityIndicator, Platform} from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { WebView } from "react-native-webview";
 import { recipeDetailStyles } from "@/assets/styles/recipe-detail.styles";
 import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/src/auth/AuthContext";
-import RecipeForm from "@/components/RecipeForm";
 import { toDetailVM } from "@/services/recipeMapper";
+import RecipeForm from "@/components/RecipeForm";
 
 const API_BASE = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
 
@@ -22,24 +19,83 @@ export default function RecipeDetailScreen() {
 
   const [vm, setVm] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
-  const isOwner = useMemo(() => {
-    if (!user || !vm) return false;
-    return String(vm.ownerId) === String(user.id);
-  }, [user, vm]);
+  const [groups, setGroups] = useState([]);
+const [groupPickerOpen, setGroupPickerOpen] = useState(false);
+const [picked, setPicked] = useState(new Set()); // seleccion temporal para modal
+
+
+  const isOwner = useMemo(() => !!user && !!vm && String(vm.owner) === String(user.id), [user, vm]);
+async function fetchGroups() {
+  try {
+    const r = await fetch(`${API_BASE}/groups?page=1&limit=100`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    setGroups(data.items || []);
+  } catch (e) {
+    setGroups([]);
+  }
+}
+
+const openGroupPicker = async () => {
+  await fetchGroups();
+  setPicked(new Set((vm.groups || []).map(String)));
+  setGroupPickerOpen(true);
+};
+const togglePick = (gid) => {
+  setPicked((s) => {
+    const n = new Set(s);
+    if (n.has(String(gid))) n.delete(String(gid)); else n.add(String(gid));
+    return n;
+  });
+};
+const saveGroupMembership = async () => {
+  const current = new Set((vm.groups || []).map(String));
+  const next = picked;
+  const toAdd = [...next].filter((id) => !current.has(id));
+  const toRemove = [...current].filter((id) => !next.has(id));
+
+  try {
+    await Promise.all([
+      ...toAdd.map((gid) =>
+        fetch(`${API_BASE}/groups/${gid}/recipes/${vm.id}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+      ),
+      ...toRemove.map((gid) =>
+        fetch(`${API_BASE}/groups/${gid}/recipes/${vm.id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+      ),
+    ]);
+    await fetchRecipe();          // refresca vm (y vm.groups)
+    setGroupPickerOpen(false);
+  } catch (e) {
+    Alert.alert("Error", "No se pudieron guardar los cambios de grupos");
+  }
+};
+
+
+  async function fetchRecipe() {
+    const r = await fetch(`${API_BASE}/recipes/${id}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    setVm(toDetailVM(data.recipe));
+  }
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch(`${API_BASE}/recipes/${id}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
-        setVm(toDetailVM(data.recipe));
+        await fetchRecipe();
       } catch (e) {
         Alert.alert("Error", String(e?.message || "No se pudo cargar la receta"));
         router.back();
@@ -49,30 +105,43 @@ export default function RecipeDetailScreen() {
     })();
   }, [id, accessToken]);
 
-  // --- helpers ---
-  const getYouTubeEmbedUrl = (url) => {
-    const videoId = url?.split("v=")?.[1];
-    return `https://www.youtube.com/embed/${videoId}`;
-  };
-
-  // --- UPDATE (PATCH) ---
+  // --------- UPDATE (PATCH) ----------
   async function handleUpdate(values) {
     setSubmitting(true);
     try {
+      const payload = {
+        title: values.title?.trim(),
+        description: values.description?.trim() || undefined,
+        ingredients: (values.ingredients || []).map((i) => ({
+          name: i.name?.trim(),
+          quantity: i.quantity?.trim() || undefined,
+          unit: i.unit?.trim() || undefined,
+          notes: i.notes?.trim() || undefined,
+        })).filter((i) => i.name),
+        steps: (values.steps || []).map((s) => s?.trim()).filter(Boolean),
+        servings: Number(values.servings) || undefined,
+        cookTime: Number(values.cookTime) || undefined,
+        images: (values.images || []).map((u) => u?.trim()).filter(Boolean),
+        tags: (values.tags || []).map((t) => t?.trim()).filter(Boolean),
+      };
+
       const r = await fetch(`${API_BASE}/recipes/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
+
+      const body = await r.json().catch(() => null);
       if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body?.error || `HTTP ${r.status}`);
+        const msg = body?.error || (body?.issues ? JSON.stringify(body.issues) : `HTTP ${r.status}`);
+        throw new Error(msg);
       }
-      const { recipe } = await r.json();
-      setVm(toDetailVM(recipe));
+
+      // refresca vista
+      await fetchRecipe();
       setEditMode(false);
       Alert.alert("Listo", "Receta actualizada");
     } catch (e) {
@@ -81,62 +150,71 @@ export default function RecipeDetailScreen() {
       setSubmitting(false);
     }
   }
+  // --------- DELETE (DELETE) ----------
 
-  // --- DELETE ---
-  function confirmDelete() {
-    Alert.alert(
-      "Eliminar receta",
-      "Esta acción no se puede deshacer. ¿Quieres eliminarla?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setSubmitting(true);
-              const r = await fetch(`${API_BASE}/recipes/${id}`, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${accessToken}` },
-              });
-              if (!r.ok) {
-                const body = await r.json().catch(() => ({}));
-                throw new Error(body?.error || `HTTP ${r.status}`);
-              }
-              Alert.alert("Eliminada", "La receta se eliminó correctamente");
-              router.replace("/(tabs)");
-            } catch (e) {
-              Alert.alert("Error", String(e?.message || "No se pudo eliminar"));
-            } finally {
-              setSubmitting(false);
-            }
-          },
-        },
-      ]
-    );
+function confirmDeleteMobile(onConfirm) {
+  Alert.alert(
+    "Eliminar receta",
+    "¿Seguro? Esta acción no se puede deshacer.",
+    [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar", style: "destructive", onPress: onConfirm },
+    ]
+  );
+}
+
+async function doDelete() {
+  try {
+    setSubmitting(true);
+    const r = await fetch(`${API_BASE}/recipes/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(body?.error || `HTTP ${r.status}`);
+    router.replace("/(tabs)");
+  } catch (e) {
+    Alert.alert("Error", String(e?.message || "No se pudo eliminar"));
+  } finally {
+    setSubmitting(false);
   }
+}
+
+function handleDelete() {
+  if (Platform.OS === "web") {
+    // Solo durante desarrollo web
+    if (window.confirm("Eliminar receta. ¿Seguro? Esta acción no se puede deshacer.")) {
+      doDelete();
+    }
+  } else {
+    // iOS / Android
+    confirmDeleteMobile(doDelete);
+  }
+}
+
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.background }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.background }}>
         <ActivityIndicator color="#fff" />
-        <Text style={{ color: "#fff", marginTop: 8 }}>Cargando...</Text>
       </View>
     );
   }
   if (!vm) return null;
 
-  // --- Edit mode: muestra el formulario ---
+  // ---------- MODO EDICIÓN: muestra el formulario ----------
   if (editMode) {
     const initialValues = {
       title: vm.title || "",
       description: vm.description || "",
       images: vm.image ? [vm.image] : [],
-      ingredients: (vm.ingredients || []).map((name) => ({ name, quantity: "", unit: "", notes: "" })),
+      ingredients: (vm.ingredientsRaw || []).length
+        ? vm.ingredientsRaw // si quieres guardar el crudo, opcional
+        : (vm.ingredients || []).map((t) => ({ name: t, quantity: "", unit: "", notes: "" })),
       steps: vm.instructions || [],
       tags: vm.category ? [vm.category] : [],
-      servings: vm.servings ?? 1,
-      cookTime: vm.cookTime ?? 1,
+      servings: Number(vm.servings) || 1,
+      cookTime: Number((vm.cookTime || "").replace(/\D+/g, "")) || 1,
     };
 
     return (
@@ -156,22 +234,16 @@ export default function RecipeDetailScreen() {
     );
   }
 
-  // --- Detalle (read-only) ---
+  // ---------- MODO LECTURA ----------
   return (
     <View style={recipeDetailStyles.container}>
       <ScrollView>
-        {/* HEADER */}
         <View style={recipeDetailStyles.headerContainer}>
           <View style={recipeDetailStyles.imageContainer}>
-            {!!vm.image && (
-              <Image source={{ uri: vm.image }} style={recipeDetailStyles.headerImage} contentFit="cover" />
-            )}
+            {!!vm.image && <Image source={{ uri: vm.image }} style={recipeDetailStyles.headerImage} contentFit="cover" />}
           </View>
 
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.9)"]}
-            style={recipeDetailStyles.gradientOverlay}
-          />
+          <LinearGradient colors={["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.9)"]} style={recipeDetailStyles.gradientOverlay} />
 
           <View style={recipeDetailStyles.floatingButtons}>
             <TouchableOpacity style={recipeDetailStyles.floatingButton} onPress={() => router.back()}>
@@ -190,7 +262,7 @@ export default function RecipeDetailScreen() {
 
                 <TouchableOpacity
                   style={[recipeDetailStyles.floatingButton, { backgroundColor: "#B00020" }]}
-                  onPress={confirmDelete}
+                  onPress={handleDelete}
                   disabled={submitting}
                 >
                   <Ionicons name="trash-outline" size={22} color={COLORS.white} />
@@ -199,30 +271,23 @@ export default function RecipeDetailScreen() {
             )}
           </View>
 
-          {/* Título + Owner */}
           <View style={recipeDetailStyles.titleSection}>
-            {vm.category && (
+            {vm.category ? (
               <View style={recipeDetailStyles.categoryBadge}>
                 <Text style={recipeDetailStyles.categoryText}>{vm.category}</Text>
               </View>
-            )}
+            ) : null}
             <Text style={recipeDetailStyles.recipeTitle}>{vm.title}</Text>
-
-            {/* 👇 Owner debajo del título */}
-            {(vm.ownerName || vm.ownerEmail) && (
+            {!!vm.ownerName && (
               <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Ionicons name="person-circle-outline" size={16} color={COLORS.white} />
-                <Text style={recipeDetailStyles.locationText}>
-                  by {vm.ownerName || vm.ownerEmail}
-                </Text>
+                <Text style={recipeDetailStyles.locationText}>by {vm.ownerName}</Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* CONTENIDO */}
         <View style={recipeDetailStyles.contentSection}>
-          {/* QUICK STATS */}
           <View style={recipeDetailStyles.statsContainer}>
             <View style={recipeDetailStyles.statCard}>
               <LinearGradient colors={["#FF6B6B", "#FF8E53"]} style={recipeDetailStyles.statIconContainer}>
@@ -240,27 +305,6 @@ export default function RecipeDetailScreen() {
               <Text style={recipeDetailStyles.statLabel}>Porciones</Text>
             </View>
           </View>
-
-          {/* VIDEO opcional */}
-          {!!vm.youtubeUrl && (
-            <View style={recipeDetailStyles.sectionContainer}>
-              <View style={recipeDetailStyles.sectionTitleRow}>
-                <LinearGradient colors={["#FF0000", "#CC0000"]} style={recipeDetailStyles.sectionIcon}>
-                  <Ionicons name="play" size={16} color={COLORS.white} />
-                </LinearGradient>
-                <Text style={recipeDetailStyles.sectionTitle}>Video Tutorial</Text>
-              </View>
-
-              <View style={recipeDetailStyles.videoCard}>
-                <WebView
-                  style={recipeDetailStyles.webview}
-                  source={{ uri: getYouTubeEmbedUrl(vm.youtubeUrl) }}
-                  allowsFullscreenVideo
-                  mediaPlaybackRequiresUserAction={false}
-                />
-              </View>
-            </View>
-          )}
 
           {/* INGREDIENTES */}
           <View style={recipeDetailStyles.sectionContainer}>
@@ -317,6 +361,7 @@ export default function RecipeDetailScreen() {
               ))}
             </View>
           </View>
+          
         </View>
       </ScrollView>
     </View>
