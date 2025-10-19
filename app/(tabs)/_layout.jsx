@@ -35,17 +35,17 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* Reemplazo de Favorites -> My Recipes */}
       <Tabs.Screen
-        name="favorites"
+        name="my-recipes"
         options={{
-          title: "Favorites",
+          title: "My Recipes",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart" color={color} size={size} />
+            <Ionicons name="book-outline" color={color} size={size} />
           ),
         }}
       />
 
-      {/* NUEVO: tab para Crear */}
       <Tabs.Screen
         name="create"
         options={{

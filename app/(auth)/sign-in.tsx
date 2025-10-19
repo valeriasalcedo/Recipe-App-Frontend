@@ -80,7 +80,7 @@ const SignInScreen = () => {
               <Text style={authStyles.buttonText}>{loading ? "Signing In..." : "Sign In"}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={authStyles.linkContainer} onPress={() => router.push("/(auth)/sign-up")}>
+            <TouchableOpacity style={authStyles.linkContainer} onPress={() => router.push("/sign-up")}>
               <Text style={authStyles.linkText}>
                 Don&apos;t have an account? <Text style={authStyles.link}>Sign up</Text>
               </Text>

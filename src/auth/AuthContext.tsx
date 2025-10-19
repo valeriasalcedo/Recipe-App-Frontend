@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { storage, STORAGE_KEYS } from "./storage";
 import { Platform } from "react-native";
+import { router } from "expo-router";
+
 
 type User = { id: string; email: string; name?: string; bio?: string };
 
@@ -21,7 +23,7 @@ const AuthContext = createContext<AuthCtx>({} as any);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null); // 🔹 nuevo
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function hydrate() {
@@ -39,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         await storage.del(STORAGE_KEYS.access);
         await storage.del(STORAGE_KEYS.refresh);
-        setAccessToken(null); // 🔹 limpiar
+        setAccessToken(null);
         setUser(null);
       }
     } catch {
@@ -61,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     await storage.set(STORAGE_KEYS.access, accessTokenIn);
     await storage.set(STORAGE_KEYS.refresh, refreshTokenIn);
-    setAccessToken(accessTokenIn); // 🔹 mantener en memoria
+    setAccessToken(accessTokenIn);
     setUser(u);
   };
 
@@ -99,13 +101,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await persistSession(at, rt, u);
   };
 
-  const logout = async () => {
-    await storage.del(STORAGE_KEYS.access);
-    await storage.del(STORAGE_KEYS.refresh);
-    setAccessToken(null); // 🔹 limpiar
-    setUser(null);
-  };
 
+const logout = async () => {
+  await storage.del(STORAGE_KEYS.access);
+  await storage.del(STORAGE_KEYS.refresh);
+  setAccessToken(null);
+  setUser(null);
+
+  router.replace("/(auth)/sign-in");
+  setTimeout(() => router.replace("/(auth)/sign-in"), 0); 
+};
   
   return (
     <AuthContext.Provider
