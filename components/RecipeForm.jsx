@@ -18,37 +18,131 @@ import { Image } from "expo-image";
 import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/src/auth/AuthContext";
 
+/* === Subida desde galería y optimización === */
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+
 const API_BASE =
   Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+
+/* === Helpers: firma backend + subida Cloudinary (RN/Web) === */
+async function getUploadSignature(API_URL, token) {
+  const r = await fetch(`${API_URL}/api/upload/signature`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) {
+    let msg = "No se pudo obtener la firma";
+    try {
+      const j = await r.json();
+      msg = j?.message || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  // { timestamp, folder, signature, apiKey, cloudName }
+  return r.json();
+}
+
+// 🔁 Reemplaza COMPLETA esta función
+// 🔁 Reemplaza COMPLETA esta función
+async function uploadToCloudinary(file, sig) {
+  const form = new FormData();
+
+  if (Platform.OS === "web") {
+    const resp = await fetch(file.uri);
+    const blob = await resp.blob();
+    form.append("file", blob, file.name || "recipe.jpg");
+  } else {
+    form.append(
+      "file",
+      {
+        uri: file.uri,
+        type: file.type || "image/jpeg",
+        name: file.name || "recipe.jpg",
+      } 
+    );
+  }
+
+  form.append("api_key", String(sig.apiKey));
+  form.append("timestamp", String(sig.timestamp));
+  if (sig.folder) form.append("folder", sig.folder);
+  form.append("signature", sig.signature);
+console.log("[cloudinary] sig", {
+  cloudName: sig?.cloudName,
+  hasSignature: !!sig?.signature,
+  hasApiKey: !!sig?.apiKey,
+  folder: sig?.folder,
+  ts: sig?.timestamp,
+});
+
+  // 🔑 IMPORTANTE: NO pongas "Content-Type" aquí.
+  const resp = await fetch(
+    `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
+    {
+      method: "POST",
+      body: form,
+      // headers: { "Content-Type": "multipart/form-data" }, // ❌ QUITAR
+    }
+  );
+
+  if (!resp.ok) {
+    let msg = "Falló la subida a Cloudinary";
+    try {
+      const j = await resp.json();
+      msg = j?.error?.message || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  const json = await resp.json();
+  return { url: json.secure_url, publicId: json.public_id };
+}
+
+
 
 export default function RecipeForm({ initialValues, onSubmit, submitting }) {
   // -------- STATE CAMPOS --------
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+
+  // imágenes (URLs) + IDs paralelos
   const [images, setImages] = useState([""]); // string[]
+  const [imagePublicIds, setImagePublicIds] = useState([""]); // string[] (alineado por índice)
+
   const [ingredients, setIngredients] = useState([
     { name: "", quantity: "", unit: "", notes: "" },
   ]);
   const [steps, setSteps] = useState([""]);
   const [imageErrors, setImageErrors] = useState({});
-  const [cookTime, setCookTime] = useState("1"); // como string
+  const [cookTime, setCookTime] = useState("1"); // string
   const [servings, setServings] = useState("1");
 
   // -------- GRUPOS --------
   const { accessToken } = useAuth();
-  const [groups, setGroups] = useState([]); // [{id,name,description,...}]
+  const [groups, setGroups] = useState([]); // [{id,name,...}]
   const [selectedGroupIds, setSelectedGroupIds] = useState(new Set());
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [gName, setGName] = useState("");
   const [gDesc, setGDesc] = useState("");
   const [creatingGroup, setCreatingGroup] = useState(false);
 
+  // Spinner por imagen
+  const [uploadingIdx, setUploadingIdx] = useState(null);
+
   // -------- EFFECTS --------
   useEffect(() => {
     if (!initialValues) return;
+
     setTitle(initialValues.title || "");
     setDescription(initialValues.description || "");
-    setImages(initialValues.images?.length ? initialValues.images : [""]);
+
+    const imgs = initialValues.images?.length ? initialValues.images : [""];
+    setImages(imgs);
+
+    if (Array.isArray(initialValues.imagePublicIds) && initialValues.imagePublicIds.length) {
+      setImagePublicIds(initialValues.imagePublicIds);
+    } else {
+      setImagePublicIds(Array(imgs.length).fill(""));
+    }
+
     setIngredients(
       initialValues.ingredients?.length
         ? initialValues.ingredients
@@ -62,7 +156,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
       initialValues.servings != null ? String(initialValues.servings) : "1"
     );
 
-    // Hidratación de grupos (si edición)
     if (Array.isArray(initialValues.groupIds) && initialValues.groupIds.length) {
       setSelectedGroupIds(new Set(initialValues.groupIds.map(String)));
     } else if (Array.isArray(initialValues.groups) && initialValues.groups.length) {
@@ -75,6 +168,16 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
   useEffect(() => {
     fetchGroups();
   }, [accessToken]);
+
+  // Mantener arrays images <> imagePublicIds sincronizados en largo
+  useEffect(() => {
+    setImagePublicIds((ids) => {
+      const diff = images.length - ids.length;
+      if (diff > 0) return [...ids, ...Array(diff).fill("")];
+      if (diff < 0) return ids.slice(0, images.length);
+      return ids;
+    });
+  }, [images]);
 
   // -------- HELPERS --------
   const onlyDigits = (t) => t.replace(/[^0-9]/g, "");
@@ -109,7 +212,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     const stepsList = steps.map((s) => s.trim()).filter(Boolean);
     if (stepsList.length) payload.steps = stepsList;
 
-    // numéricos
     payload.cookTime = Math.max(1, parseInt(cookTime || "1", 10));
     payload.servings = Math.max(1, parseInt(servings || "1", 10));
 
@@ -117,8 +219,13 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     const imageList = images.map((u) => u.trim()).filter(Boolean);
     if (imageList.length) payload.images = imageList;
 
-    payload.groupIds = Array.from(selectedGroupIds);
+    // IDs alineados al índice de images
+    if (images.length) {
+      const idsAligned = images.map((_, i) => imagePublicIds[i] || undefined);
+      if (idsAligned.some((x) => !!x)) payload.imagePublicIds = idsAligned;
+    }
 
+    payload.groupIds = Array.from(selectedGroupIds);
     return payload;
   };
 
@@ -129,18 +236,110 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
   };
 
   // -------- IMÁGENES --------
-  const addImage = () => setImages((arr) => [...arr, ""]);
+  const addImage = () => {
+    setImages((arr) => [...arr, ""]);
+    setImagePublicIds((ids) => [...ids, ""]);
+  };
+
   const updateImage = (idx, value) => {
     setImages((arr) => arr.map((u, i) => (i === idx ? value : u)));
     setImageErrors((err) => ({ ...err, [idx]: false }));
   };
+
   const removeImage = (idx) => {
     setImages((arr) => arr.filter((_, i) => i !== idx));
+    setImagePublicIds((arr) => arr.filter((_, i) => i !== idx));
     setImageErrors((err) => {
       const copy = { ...err };
       delete copy[idx];
       return copy;
     });
+  };
+
+  // Subir desde galería y autocompletar images[idx] + imagePublicIds[idx]
+  const pickAndUploadAt = async (idx) => {
+    try {
+      console.log("[pickAndUploadAt] tap idx =", idx);
+
+      if (!accessToken) {
+        console.warn("[pickAndUploadAt] sin token");
+        Alert.alert("Sesión requerida", "Inicia sesión para subir imágenes.");
+        return;
+      }
+
+      // Permisos (solo nativo)
+      if (Platform.OS !== "web") {
+        let perm = await ImagePicker.getMediaLibraryPermissionsAsync();
+        console.log("[pickAndUploadAt] permiso actual:", perm);
+        if (!perm.granted) {
+          perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          console.log("[pickAndUploadAt] permiso solicitado:", perm);
+          if (!perm.granted) {
+            Alert.alert("Permiso requerido", "Necesitamos acceso a la galería.");
+            return;
+          }
+        }
+      }
+
+      console.log("[pickAndUploadAt] abriendo galería");
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      console.log("[pickAndUploadAt] result:", result);
+      if (!result || result.canceled) {
+        Alert.alert("Sin selección", "No elegiste ninguna imagen.");
+        return;
+      }
+
+      const asset = result.assets?.[0];
+      if (!asset?.uri) {
+        console.error("[pickAndUploadAt] asset inválido", result);
+        Alert.alert("Error", "No se obtuvo la imagen seleccionada.");
+        return;
+      }
+
+      setUploadingIdx(idx);
+
+      // Redimensionar/comprimir (si falla, usar original)
+      let uploadUri = asset.uri;
+      try {
+        const manip = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 1920 } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        uploadUri = manip?.uri || asset.uri;
+        console.log("[pickAndUploadAt] manip.uri:", uploadUri);
+      } catch (err) {
+        console.warn("[pickAndUploadAt] manipulate falló, uso original:", err);
+      }
+
+      // Firma + Subida
+      console.log("[pickAndUploadAt] pidiendo firma…");
+      const sig = await getUploadSignature(API_BASE, accessToken);
+      console.log("[pickAndUploadAt] firma OK", { cloud: sig?.cloudName, folder: sig?.folder });
+
+      console.log("[pickAndUploadAt] subiendo…");
+      const { url, publicId } = await uploadToCloudinary(
+        { uri: uploadUri, type: "image/jpeg", name: "recipe.jpg" },
+        sig
+      );
+      console.log("[pickAndUploadAt] subida OK", { url, publicId });
+
+      // Actualiza inputs
+      updateImage(idx, url);
+      setImagePublicIds((ids) => ids.map((v, i) => (i === idx ? publicId : v)));
+
+      Alert.alert("Listo", "Imagen subida correctamente.");
+    } catch (e) {
+      console.error("[pickAndUploadAt] error:", e);
+      Alert.alert("Error", String(e?.message || "No se pudo subir la imagen."));
+    } finally {
+      setUploadingIdx(null);
+    }
   };
 
   // -------- INGREDIENTES --------
@@ -209,7 +408,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
       const body = await r.json().catch(() => null);
       if (!r.ok) throw new Error(body?.error || body?.message || `HTTP ${r.status}`);
 
-      // refresco + selección del recién creado
       await fetchGroups();
       if (body?.group?.id) {
         setSelectedGroupIds((s) => new Set([...s, String(body.group.id)]));
@@ -270,18 +468,42 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
         {/* Imágenes */}
         <Card>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <Label icon="image-outline" text="Imágenes (URLs)" />
+            <Label icon="image-outline" text="Imágenes (URLs o subir)" />
             <Text style={{ color: COLORS.textLight }}>(opcional)</Text>
           </View>
 
           {images.map((url, idx) => (
             <View key={`img-${idx}`} style={{ marginBottom: 12 }}>
-              <Input
-                value={url}
-                onChangeText={(t) => updateImage(idx, t)}
-                placeholder="https://...jpg"
-                autoCapitalize="none"
-              />
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Input
+                  style={{ flex: 1 }}
+                  value={url}
+                  onChangeText={(t) => updateImage(idx, t)}
+                  placeholder="https://...jpg"
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  onPress={async () => {
+                    console.log("[UI] press subir idx", idx);
+                    await pickAndUploadAt(idx);
+                  }}
+                  style={[smallBtn(), { minWidth: 140, justifyContent: "center" }]}
+                  disabled={uploadingIdx === idx}
+                >
+                  {uploadingIdx === idx ? (
+                    <>
+                      <ActivityIndicator size="small" color="#fff" />
+                      <Text style={smallBtnText}> Subiendo...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
+                      <Text style={smallBtnText}>Subir desde galería</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
               {!!url && (
                 <View
                   style={{
@@ -306,6 +528,13 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                   No se pudo cargar la imagen. Verifica la URL.
                 </Text>
               )}
+
+              {imagePublicIds[idx] ? (
+                <Text style={{ color: "#ddd", marginTop: 6, fontSize: 12 }}>
+                  ID: {imagePublicIds[idx]}
+                </Text>
+              ) : null}
+
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                 <TouchableOpacity onPress={() => removeImage(idx)} style={smallBtn("#2b1b1b")}>
                   <Ionicons name="trash-outline" size={16} color="#fff" />
@@ -320,6 +549,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
               </View>
             </View>
           ))}
+
           {images.length === 0 && (
             <TouchableOpacity onPress={addImage} style={ghostBtn}>
               <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
