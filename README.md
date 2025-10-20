@@ -1,4 +1,5 @@
 #  Recipe App – Frontend (React Native + Expo)
+Carlos Fernandez y Valeria Salcedo
 
 ## Descarga & Demo
 
@@ -144,3 +145,4 @@ Puedes escanear el QR con Expo Go (iOS/Android) o ejecutar en el navegador (w).
 | **Autenticación** | JWT |
 | **Estado global** | Context API |
 | **Almacenamiento** | AsyncStorage |
+
