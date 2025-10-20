@@ -173,6 +173,7 @@ export const homeStyles = StyleSheet.create({
   },
 });
 
+
 export const recipeCardStyles = StyleSheet.create({
   container: {
     width: cardWidth,

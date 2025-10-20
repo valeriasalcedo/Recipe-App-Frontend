@@ -24,6 +24,7 @@ searchContainer: {
   ...shadow(1),
 },
 
+
   searchIcon: {
     marginRight: 12,
   },

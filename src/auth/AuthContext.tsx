@@ -1,7 +1,8 @@
-// src/auth/AuthContext.tsx (o .jsx)
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { storage } from "./storage";
+import { storage, STORAGE_KEYS } from "./storage";
 import { Platform } from "react-native";
+import { router } from "expo-router";
+
 
 type User = { id: string; email: string; name?: string; bio?: string };
 
@@ -22,14 +23,14 @@ const AuthContext = createContext<AuthCtx>({} as any);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null); // 🔹 nuevo
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function hydrate() {
     try {
-      const token = await storage.get("accessToken");
-      if (!token) return; // no user signed in
-      setAccessToken(token); // 🔹 mantener en memoria
+      const token = await storage.get(STORAGE_KEYS.access);
+      if (!token) return; 
+      setAccessToken(token); 
 
       const r = await fetch(`${API}/users/me`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -38,9 +39,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await r.json();
         setUser(data.user);
       } else {
-        await storage.del("accessToken");
-        await storage.del("refreshToken");
-        setAccessToken(null); // 🔹 limpiar
+        await storage.del(STORAGE_KEYS.access);
+        await storage.del(STORAGE_KEYS.refresh);
+        setAccessToken(null);
         setUser(null);
       }
     } catch {
@@ -60,9 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshTokenIn: string,
     u: User
   ) => {
-    await storage.set("accessToken", accessTokenIn);
-    await storage.set("refreshToken", refreshTokenIn);
-    setAccessToken(accessTokenIn); // 🔹 mantener en memoria
+    await storage.set(STORAGE_KEYS.access, accessTokenIn);
+    await storage.set(STORAGE_KEYS.refresh, refreshTokenIn);
+    setAccessToken(accessTokenIn);
     setUser(u);
   };
 
@@ -91,20 +92,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const message =
         body?.message ||
         body?.error ||
-        (r.status === 409 ? "El email ya está registrado" : "Error al registrarte");
+        (r.status === 409
+          ? "El email ya está registrado"
+          : "Error al registrarte");
       throw new Error(message);
     }
     const { accessToken: at, refreshToken: rt, user: u } = await r.json();
     await persistSession(at, rt, u);
   };
 
-  const logout = async () => {
-    await storage.del("accessToken");
-    await storage.del("refreshToken");
-    setAccessToken(null); // 🔹 limpiar
-    setUser(null);
-  };
 
+const logout = async () => {
+  await storage.del(STORAGE_KEYS.access);
+  await storage.del(STORAGE_KEYS.refresh);
+  setAccessToken(null);
+  setUser(null);
+
+  router.replace("/(auth)/sign-in");
+  setTimeout(() => router.replace("/(auth)/sign-in"), 0); 
+};
+  
   return (
     <AuthContext.Provider
       value={{ user, accessToken, loading, login, register, logout }}

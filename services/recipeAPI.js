@@ -29,7 +29,6 @@ export const RecipeAPI = {
     }
 
     if (!res.ok) {
-      // Errores comunes de tu backend
       if (res.status === 422 && data?.issues) {
         const issues = data.issues.map((i) => i.message || i.code).join("\n");
         throw new Error(`Validación fallida:\n${issues}`);

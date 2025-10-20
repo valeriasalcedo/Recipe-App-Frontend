@@ -1,51 +1,48 @@
-// services/recipeMapper.js
-// Adapta tu receta del backend al shape que tu UI ya espera
+// Mapea una receta del backend a lo que usan las cards del Home
+export function toCardVM(api) {
+  return {
+    id: String(api.id),
+    title: api.title ?? "",
+    image: api.images?.[0] ?? null,
 
-export function toDetailVM(apiRecipe) {
-  const firstImage = apiRecipe.images?.[0] || null;
+    // usa los valores reales si existen; si no, deja null (o un fallback de tu preferencia)
+    cookTime: Number.isFinite(api.cookTime) ? `${api.cookTime} minutes` : null,
+    servings: Number.isFinite(api.servings) ? String(api.servings) : null,
 
-  // ingredients: [{name, quantity?, unit?, notes?}] -> ["200 g Harina (nota)"]
-  const ingredientsAsText = (apiRecipe.ingredients || []).map((i) => {
-    const qty = i.quantity ? `${i.quantity}` : "";
-    const unit = i.unit ? `${i.unit}` : "";
-    const main = [qty, unit, i.name].filter(Boolean).join(" ").trim();
+    category: api.tags?.[0] ?? "General",
+
+    // meta de autor
+    owner: api.owner ? String(api.owner) : null,
+    ownerName: api.ownerName ?? api.ownerEmail ?? "Unknown",
+
+    // importantísimo para filtrar por grupo
+    groups: Array.isArray(api.groups) ? api.groups.map(String) : [],
+  };
+}
+
+// Mapea para la vista de detalle
+export function toDetailVM(api) {
+  const ingredientsAsText = (api.ingredients || []).map((i) => {
+    const main = [i.quantity, i.unit, i.name].filter(Boolean).join(" ").trim();
     return i.notes ? `${main} (${i.notes})` : main;
   });
 
   return {
-    // Cabecera que tu UI usa
-    title: apiRecipe.title,
-    image: firstImage,
-    category: (apiRecipe.tags && apiRecipe.tags[0]) || "Recipe",
-    area: null,               // tu modelo no tiene 'area' (dejamos nulo)
-    cookTime: "—",            // si luego agregas campo, lo pintas aquí
-    servings: "—",            // idem
+    id: String(api.id),
+    title: api.title ?? "",
+    image: api.images?.[0] ?? null,
+    category: api.tags?.[0] ?? "Recipe",
 
-    // Video: tu modelo no tiene; mantenemos null
-    youtubeUrl: null,
+    cookTime: Number.isFinite(api.cookTime) ? `${api.cookTime} minutes` : null,
+    servings: Number.isFinite(api.servings) ? String(api.servings) : null,
 
-    // Cuerpo que tu UI espera
-    ingredients: ingredientsAsText,            // array<string>
-    instructions: apiRecipe.steps || [],       // tu modelo steps[] -> instructions
+    youtubeUrl: null, // si más adelante lo agregas al modelo, cámbialo aquí
+    ingredients: ingredientsAsText,
+    instructions: api.steps || [],
+
+    owner: api.owner ? String(api.owner) : null,
+    ownerName: api.ownerName ?? api.ownerEmail ?? "Unknown",
+
+    groups: Array.isArray(api.groups) ? api.groups.map(String) : [],
   };
 }
-
-// versión compacta para listas (cards)
-// services/recipeMapper.js
-// Tu API -> UI actual
-
-export function toCardVM(apiRecipe) {
-  return {
-    id: apiRecipe.id,
-    title: apiRecipe.title,
-    image: apiRecipe.images?.[0] || null,
-    // placeholders hasta que agregues en el modelo:
-    cookTime: "30 minutes",
-    servings: "4",
-    // usaremos el primer tag como "categoría"
-    category: apiRecipe.tags?.[0] || "General",
-    // opcional para subtítulos en cards
-    description: apiRecipe.description || "",
-  };
-}
-
