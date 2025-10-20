@@ -1,4 +1,3 @@
-// src/services/uploadCloudinary.ts
 export async function getUploadSignature(API_URL: string, token: string) {
   const r = await fetch(`${API_URL}/api/upload/signature`, {
     headers: { Authorization: `Bearer ${token}` },

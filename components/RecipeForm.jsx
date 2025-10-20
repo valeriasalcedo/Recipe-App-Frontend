@@ -1,4 +1,3 @@
-// components/RecipeForm.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -18,14 +17,12 @@ import { Image } from "expo-image";
 import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/src/auth/AuthContext";
 
-/* === Subida desde galería y optimización === */
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 
 const API_BASE =
-  Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+  Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 
-/* === Helpers: firma backend + subida Cloudinary (RN/Web) === */
 async function getUploadSignature(API_URL, token) {
   const r = await fetch(`${API_URL}/api/upload/signature`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -38,12 +35,9 @@ async function getUploadSignature(API_URL, token) {
     } catch {}
     throw new Error(msg);
   }
-  // { timestamp, folder, signature, apiKey, cloudName }
   return r.json();
 }
 
-// 🔁 Reemplaza COMPLETA esta función
-// 🔁 Reemplaza COMPLETA esta función
 async function uploadToCloudinary(file, sig) {
   const form = new FormData();
 
@@ -74,13 +68,11 @@ console.log("[cloudinary] sig", {
   ts: sig?.timestamp,
 });
 
-  // 🔑 IMPORTANTE: NO pongas "Content-Type" aquí.
   const resp = await fetch(
     `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
     {
       method: "POST",
       body: form,
-      // headers: { "Content-Type": "multipart/form-data" }, // ❌ QUITAR
     }
   );
 
@@ -103,9 +95,8 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
-  // imágenes (URLs) + IDs paralelos
-  const [images, setImages] = useState([""]); // string[]
-  const [imagePublicIds, setImagePublicIds] = useState([""]); // string[] (alineado por índice)
+  const [images, setImages] = useState([""]);
+  const [imagePublicIds, setImagePublicIds] = useState([""]);
 
   const [ingredients, setIngredients] = useState([
     { name: "", quantity: "", unit: "", notes: "" },
@@ -219,7 +210,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     const imageList = images.map((u) => u.trim()).filter(Boolean);
     if (imageList.length) payload.images = imageList;
 
-    // IDs alineados al índice de images
     if (images.length) {
       const idsAligned = images.map((_, i) => imagePublicIds[i] || undefined);
       if (idsAligned.some((x) => !!x)) payload.imagePublicIds = idsAligned;
@@ -256,7 +246,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     });
   };
 
-  // Subir desde galería y autocompletar images[idx] + imagePublicIds[idx]
   const pickAndUploadAt = async (idx) => {
     try {
       console.log("[pickAndUploadAt] tap idx =", idx);
@@ -267,7 +256,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
         return;
       }
 
-      // Permisos (solo nativo)
       if (Platform.OS !== "web") {
         let perm = await ImagePicker.getMediaLibraryPermissionsAsync();
         console.log("[pickAndUploadAt] permiso actual:", perm);
@@ -303,7 +291,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
 
       setUploadingIdx(idx);
 
-      // Redimensionar/comprimir (si falla, usar original)
       let uploadUri = asset.uri;
       try {
         const manip = await ImageManipulator.manipulateAsync(

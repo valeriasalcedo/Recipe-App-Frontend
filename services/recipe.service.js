@@ -1,17 +1,15 @@
 import { Platform } from "react-native";
 
 const API_BASE =
-  Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+  Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 
-/**
- * Trae SOLO tus recetas (usa el token).
- */
+
 export async function getMyRecipes({ accessToken, page = 1, limit = 100 } = {}) {
   const url = `${API_BASE}/recipes?scope=personal&page=${page}&limit=${limit}`;
 
   const res = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${accessToken}`,   // <- NECESARIO
+      Authorization: `Bearer ${accessToken}`, 
     },
   });
 
@@ -20,7 +18,7 @@ export async function getMyRecipes({ accessToken, page = 1, limit = 100 } = {}) 
     throw new Error(`Error fetching my recipes (${res.status}): ${text}`);
   }
 
-  const data = await res.json(); // tu backend responde { page, limit, total, items: [...] }
+  const data = await res.json(); 
 
   const items = Array.isArray(data?.items) ? data.items : [];
   return items.map((r) => ({
@@ -30,6 +28,5 @@ export async function getMyRecipes({ accessToken, page = 1, limit = 100 } = {}) 
     image: r.images?.[0] ?? null,
     servings: r.servings,
     cookTime: r.cookTime,
-    // añade lo que necesites
   }));
 }

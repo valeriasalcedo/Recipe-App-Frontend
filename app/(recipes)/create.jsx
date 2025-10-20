@@ -66,7 +66,6 @@ async function uploadToCloudinary(file, sig) {
   return { url: json.secure_url, publicId: json.public_id };
 }
 
-// Mini util para thumbs (opcional)
 function cloudinaryThumb(url, { w = 300, h = 300, crop = "fill" } = {}) {
   if (!url || !url.includes("/upload/")) return url;
   return url.replace("/upload/", `/upload/f_auto,q_auto,w_${w},h_${h},c_${crop}/`);
@@ -78,29 +77,23 @@ const CreateRecipeScreen = () => {
   const { user, accessToken } = useAuth();
   const token = accessToken || user?.accessToken || user?.token || null;
 
-  // URL base de API (ajusta si ya la tienes centralizada)
   const API_URL =
     (RecipeAPI && (RecipeAPI.API_URL || RecipeAPI.baseURL || RecipeAPI.getBaseUrl?.())) ||
     process.env.EXPO_PUBLIC_API_URL ||
-    "http://10.0.2.2:4000";
+    "https://backend-recipeapp-production.up.railway.app";
 
-  // Campos obligatorios del DTO
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
-  // ingredients: [{ name, quantity?, unit?, notes? }]
   const [ingredients, setIngredients] = useState([{ name: "", quantity: "", unit: "", notes: "" }]);
 
-  // steps: string[]
   const [steps, setSteps] = useState([""]);
 
-  // imágenes (subidas a Cloudinary)
-  const [images, setImages] = useState([]);              // URLs (secure_url)
-  const [imagePublicIds, setImagePublicIds] = useState([]); // public_id
+  const [images, setImages] = useState([]);
+  const [imagePublicIds, setImagePublicIds] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
 
-  // tags: string[]
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState([]);
 
@@ -141,16 +134,13 @@ const CreateRecipeScreen = () => {
       const asset = result.assets[0];
       setUploading(true);
 
-      // Redimensionar / comprimir antes de subir (ancho máx 1920)
       const manip = await ImageManipulator.manipulateAsync(
         asset.uri,
         [{ resize: { width: 1920 } }],
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      // 1) Firma con el backend
       const sig = await getUploadSignature(API_URL, token);
-      // 2) Subir a Cloudinary
       const { url, publicId } = await uploadToCloudinary(
         { uri: manip.uri, type: "image/jpeg", name: "recipe.jpg" },
         sig
@@ -214,15 +204,14 @@ const CreateRecipeScreen = () => {
         }))
         .filter((i) => i.name),
       steps: steps.map((s) => s.trim()).filter(Boolean),
-      images,           // <- URLs Cloudinary
-      imagePublicIds,   // <- public_id Cloudinary
+      images,
+      imagePublicIds,
     };
 
     if (tags.length) payload.tags = tags;
 
     setSubmitting(true);
     try {
-      // Usa tu servicio existente
       const recipe = await RecipeAPI.createRecipe(payload, token);
       Alert.alert("Éxito", "Receta creada correctamente.");
       const newId = recipe?.id;
@@ -339,11 +328,7 @@ const CreateRecipeScreen = () => {
             </TouchableOpacity>
           </ScrollView>
 
-          {/* Nota opcional para pegar URLs manualmente (si lo deseas)
-          <Text style={{ color: COLORS.textMuted, marginTop: 8, fontSize: 12 }}>
-            También puedes permitir pegar una URL aquí si ya tienes una imagen hospedada.
-          </Text>
-          */}
+         
         </Card>
 
         {/* Ingredientes */}

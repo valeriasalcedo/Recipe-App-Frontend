@@ -1,4 +1,3 @@
-// src/components/RecipeImagesUploader.tsx
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, Image, Alert, ActivityIndicator, FlatList } from "react-native";
 import * as ImagePicker from "expo-image-picker";

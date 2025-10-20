@@ -15,9 +15,8 @@ type AuthCtx = {
   logout: () => Promise<void>;
 };
 
-// Base URL sensible al entorno
 const API =
-  Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+  Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 
 const AuthContext = createContext<AuthCtx>({} as any);
 

@@ -43,7 +43,6 @@ const SignUpScreen = () => {
       await register(email.trim(), password, name.trim());
       router.replace("/");
     } catch (err: any) {
-      // muestra mensaje del backend si existe
       const msg = err?.message || err?.body?.message || "No se pudo crear la cuenta.";
       setFormError(msg);
     } finally {

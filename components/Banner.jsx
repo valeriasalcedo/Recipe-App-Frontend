@@ -1,4 +1,3 @@
-// components/Banner.js
 import React, { useEffect, useRef } from "react";
 import { View, Text, Animated, TouchableOpacity } from "react-native";
 

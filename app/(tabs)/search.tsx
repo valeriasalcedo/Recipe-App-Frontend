@@ -9,7 +9,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/src/auth/AuthContext";
 import { toCardVM } from "@/services/recipeMapper";
 
-const API = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+const API = Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 
 export default function SearchScreen() {
   const { accessToken } = useAuth();
@@ -22,7 +22,7 @@ export default function SearchScreen() {
 
   async function fetchRecipes(q: string) {
     const url = new URL(`${API}/recipes`);
-    url.searchParams.set("scope", "general"); // TODAS
+    url.searchParams.set("scope", "general");
     url.searchParams.set("limit", "100");
     if (q.trim()) url.searchParams.set("q", q.trim());
 
@@ -33,7 +33,6 @@ export default function SearchScreen() {
     const data = await r.json(); // {items,total,...}
     const cards = (data.items || []).map(toCardVM);
 
-    // si no hay query, muestra “populares”: baraja y toma 12
     if (!q.trim()) {
       for (let i = cards.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -44,7 +43,6 @@ export default function SearchScreen() {
     return cards.slice(0, 50);
   }
 
-  // carga inicial (populares)
   useEffect(() => {
     (async () => {
       try {

@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/constants/colors";
 
-// Props: groups, selectedId, onSelect, onCreate
 export default function CategoryFilter({ groups = [], selectedId, onSelect, onCreate }) {
   // Orden: +, All, grupos
   const chips = [

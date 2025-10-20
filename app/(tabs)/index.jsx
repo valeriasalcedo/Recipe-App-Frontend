@@ -14,7 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native"; // ✅ useFocusEffect correcto
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import RecipeCard from "../../components/RecipeCard";
 import LoadingSpinner from "../../components/LoadingSpinner";
@@ -25,10 +25,9 @@ import { useAuth } from "@/src/auth/AuthContext";
 import { toCardVM } from "@/services/recipeMapper";
 
 const API_BASE =
-  Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+  Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 const ALL = "__ALL__";
 
-/** Construye un índice recipeId -> Set<groupId> a partir del payload de /groups */
 function indexGroupMembership(groupsArr = []) {
   const idx = new Map();
   for (const g of groupsArr) {
@@ -46,8 +45,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const { accessToken, user } = useAuth();
 
-  const [recipesRaw, setRecipesRaw] = useState([]);   // ← crudo desde /recipes
-  const [recipes, setRecipes] = useState([]);         // ← cards con groups calculado
+  const [recipesRaw, setRecipesRaw] = useState([]);
+  const [recipes, setRecipes] = useState([]); 
   const [groups, setGroups] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(ALL);
 
@@ -71,7 +70,7 @@ export default function HomeScreen() {
     });
     if (!r.ok) throw new Error(`RECIPES HTTP ${r.status}`);
     const data = await r.json();
-    setRecipesRaw(data.items || []); // guardamos crudo
+    setRecipesRaw(data.items || []);
   }
 
   async function fetchGroups() {
@@ -92,12 +91,10 @@ export default function HomeScreen() {
     }
   }
 
-  // Carga inicial
   useEffect(() => {
     if (accessToken) loadAll();
   }, [accessToken]);
 
-  // Re-cargar al volver el foco al tab
   useFocusEffect(
     useCallback(() => {
       if (!accessToken) return;
@@ -109,13 +106,12 @@ export default function HomeScreen() {
     }, [accessToken])
   );
 
-  // Derivar cards con groups a partir de recetas crudas + groups
   useEffect(() => {
     const membership = indexGroupMembership(groups);
     const cards = (recipesRaw || []).map((raw) => {
       const vm = toCardVM(raw);
       const groupIds = Array.from(membership.get(String(raw.id)) || []);
-      return { ...vm, groups: groupIds }; // ← ahora sí, ids de grupos a los que pertenece
+      return { ...vm, groups: groupIds };
     });
     setRecipes(cards);
   }, [recipesRaw, groups]);

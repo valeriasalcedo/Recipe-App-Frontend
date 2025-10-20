@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 
 const BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL as string | undefined) ||
-  "http://localhost:4000";
+  "https://backend-recipeapp-production.up.railway.app";
 
 export const api = {
   baseURL: BASE.replace(/\/$/, ""),
@@ -24,7 +24,6 @@ export const api = {
   },
 };
 
-// Fetch con Authorization + auto-refresh (sin axios)
 let isRefreshing = false;
 let queued: Array<(t: string) => void> = [];
 
@@ -45,7 +44,6 @@ export async function withAuth(doRequest: () => Promise<Response>): Promise<Resp
   const res = await addAuth(doRequest);
   if (res.status !== 401) return res;
 
-  // 401 -> intenta refresh
   return await refreshAndReplay(doRequest);
 }
 
@@ -71,7 +69,6 @@ async function refreshAndReplay(doRequest: () => Promise<Response>) {
     const newToken = await new Promise<string>((resolve) => queued.push(resolve));
     return await addAuth(async () => {
       const res2 = await doRequest();
-      // re-attach token for this call
       return res2;
     });
   }
@@ -97,7 +94,6 @@ async function refreshAndReplay(doRequest: () => Promise<Response>) {
     queued.forEach((cb) => cb(data.accessToken));
     queued = [];
 
-    // reintenta
     return await addAuth(doRequest);
   } finally {
     isRefreshing = false;

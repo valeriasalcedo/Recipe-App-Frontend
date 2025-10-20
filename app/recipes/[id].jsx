@@ -10,7 +10,7 @@ import { useAuth } from "@/src/auth/AuthContext";
 import { toDetailVM } from "@/services/recipeMapper";
 import RecipeForm from "@/components/RecipeForm";
 
-const API_BASE = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+const API_BASE = Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams();

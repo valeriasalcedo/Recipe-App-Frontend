@@ -84,7 +84,6 @@ const handleSignOut = () => {
   <TouchableOpacity
     onPress={() => {
       console.log("[MyRecipes] logout button tapped");
-      // En web: cerrar sesión directo (Alert puede ser raro en web)
       if (Platform.OS === "web") {
         logout?.()
           .then(() => console.log("[MyRecipes] logged out (web)"))
@@ -110,7 +109,6 @@ const handleSignOut = () => {
           },
         ]);
       } catch (err) {
-        // Fallback por si Alert fallara
         console.log("[MyRecipes] Alert failed, doing direct logout", err);
         logout?.().catch(() => {});
       }

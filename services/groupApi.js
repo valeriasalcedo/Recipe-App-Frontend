@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-const API = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+const API = Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 
 export function withAuth(token) {
   const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };

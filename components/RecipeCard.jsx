@@ -19,6 +19,7 @@ export default function RecipeCard({ recipe }) {
           source={{ uri: recipe.image }}
           style={recipeCardStyles.image}
           contentFit="cover"
+          
           transition={300}
         />
       </View>

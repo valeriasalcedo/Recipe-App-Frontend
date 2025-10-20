@@ -1,4 +1,3 @@
-// src/utils/normalizeError.ts
 export type AnyErr =
   | string
   | Error
@@ -22,7 +21,6 @@ function tryParseJsonString(str: string): any {
 }
 
 export function normalizeError(err: unknown, fallback = "Algo salió mal."): string {
-  // 1) string
   if (typeof err === "string") {
     const maybe = tryParseJsonString(err);
     if (maybe && typeof maybe === "object") {
@@ -34,12 +32,10 @@ export function normalizeError(err: unknown, fallback = "Algo salió mal."): str
     return err;
   }
 
-  // 2) Error
   if (err instanceof Error) {
     return err.message || fallback;
   }
 
-  // 3) objetos comunes
   if (err && typeof err === "object") {
     const candidate =
       pick(err, [

@@ -7,7 +7,7 @@ import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/src/auth/AuthContext";
 import Banner from "@/components/Banner";
 
-const API = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
+const API = Platform.OS === "android" ? "https://backend-recipeapp-production.up.railway.app" : "http://localhost:4000";
 
 export default function CreateRecipeScreen() {
   const router = useRouter();
@@ -97,7 +97,7 @@ export default function CreateRecipeScreen() {
 
 
       alert("¡Receta creada!");
-      router.replace(`/recipes`); // ← vuelve al tab principal
+      router.replace(`/recipes`);
     } catch (e) {
       alert(String(e?.message || "No se pudo crear la receta."));
     } finally {

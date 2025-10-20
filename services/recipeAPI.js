@@ -1,5 +1,4 @@
-// services/recipeAPI.js
-const API_BASE = "http://localhost:4000";
+const API_BASE = "https://backend-recipeapp-production.up.railway.app";
 
 function authHeaders(token) {
   return {
@@ -10,7 +9,6 @@ function authHeaders(token) {
 
 export const RecipeAPI = {
   async createRecipe(payload, token) {
-    // payload debe cumplir CreateRecipeDTO
     const res = await fetch(`${API_BASE}/recipes`, {
       method: "POST",
       headers: {
@@ -25,7 +23,6 @@ export const RecipeAPI = {
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
-      // deja data como null si no es JSON
     }
 
     if (!res.ok) {
@@ -39,7 +36,6 @@ export const RecipeAPI = {
       throw new Error(data?.error || `Error HTTP ${res.status}`);
     }
 
-    // tu backend responde { recipe }
     return data?.recipe ?? data;
   },
 };
