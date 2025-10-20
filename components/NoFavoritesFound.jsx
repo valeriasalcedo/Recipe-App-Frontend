@@ -15,7 +15,7 @@ function NoFavoritesFound() {
       <Text style={favoritesStyles.emptyTitle}>No favorites yet</Text>
       <TouchableOpacity style={favoritesStyles.exploreButton} onPress={() => router.push("/")}>
         <Ionicons name="search" size={18} color={COLORS.white} />
-        <Text style={favoritesStyles.exploreButtonText}>Explore Recipes</Text>
+        <Text style={favoritesStyles.exploreButtonText}>Descubre Recetas</Text>
       </TouchableOpacity>
     </View>
   );

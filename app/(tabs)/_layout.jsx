@@ -18,7 +18,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Recipes",
+          title: "Recetas",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="restaurant" color={color} size={size} />
           ),
@@ -28,20 +28,19 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          title: "Search",
+          title: "Buscar",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="search" color={color} size={size} />
           ),
         }}
       />
 
-      {/* Reemplazo de Favorites -> My Recipes */}
       <Tabs.Screen
-        name="my-recipes"
+        name="recipes"
         options={{
-          title: "My Recipes",
+          title: "recetas",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" color={color} size={size} />
+            <Ionicons name="book" color={color} size={size} />
           ),
         }}
       />
@@ -49,7 +48,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="create"
         options={{
-          title: "Create",
+          title: "Crear",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="add-circle" color={color} size={size} />
           ),

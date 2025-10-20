@@ -1,4 +1,3 @@
-// app/recipes/create.jsx
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,11 +14,9 @@ export default function CreateRecipeScreen() {
   const { accessToken } = useAuth();
 
   const [submitting, setSubmitting] = useState(false);
-  const [banner, setBanner] = useState(null); // {type: 'success'|'error'|'info', text: string}
+  const [banner, setBanner] = useState(null);
 
-  function showBanner(type, text, autoHideMs = 3500) {
-    setBanner({ type, text, autoHideMs });
-  }
+  const showBanner = (type, text, autoHideMs = 3500) => setBanner({ type, text, autoHideMs });
 
   const initialValues = {
     title: "",
@@ -32,13 +29,18 @@ export default function CreateRecipeScreen() {
     cookTime: 1,
   };
 
+  const onBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  };
+
   const sanitizeStr = (s) => (typeof s === "string" ? s.trim() : s);
   const toIntMin = (v, min = 1, fallback = 1) => {
     const n = parseInt(String(v), 10);
     return Number.isFinite(n) && n >= min ? n : fallback;
   };
 
-  function preparePayload(values) {
+  const preparePayload = (values) => {
     const title = sanitizeStr(values.title);
     const description = sanitizeStr(values.description) || undefined;
 
@@ -49,50 +51,40 @@ export default function CreateRecipeScreen() {
         unit: sanitizeStr(i.unit) || undefined,
         notes: sanitizeStr(i.notes) || undefined,
       }))
-      .filter((i) => i.name && i.name.length > 0);
+      .filter((i) => i.name);
 
     const steps = (values.steps || []).map(sanitizeStr).filter(Boolean);
     const images = (values.images || []).map(sanitizeStr).filter(Boolean);
     const tags = (values.tags || []).map(sanitizeStr).filter(Boolean);
-
-    const servings = toIntMin(values.servings, 1, 1);
-    const cookTime = toIntMin(values.cookTime, 1, 1);
+    const servings = toIntMin(values.servings);
+    const cookTime = toIntMin(values.cookTime);
 
     const payload = { title, description, ingredients, steps, servings, cookTime };
     if (images.length) payload.images = images;
     if (tags.length) payload.tags = tags;
     return payload;
-  }
+  };
 
- async function handleCreate(values) {
-  setSubmitting(true);
-  try {
-    const payload = preparePayload(values); // ahora no metas tags, pero sí acepta groupIds que viene del form
-    const r = await fetch(`${API}/recipes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({
-        title: payload.title,
-        description: payload.description,
-        ingredients: payload.ingredients,
-        steps: payload.steps,
-        servings: payload.servings,
-        cookTime: payload.cookTime,
-        images: payload.images,
-        // OJO: el backend de recipes NO recibe groups. Asociamos aparte.
-      }),
-    });
+  async function handleCreate(values) {
+    setSubmitting(true);
+    try {
+      const payload = preparePayload(values);
+      const r = await fetch(`${API}/recipes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const body = await r.json().catch(() => null);
-    if (!r.ok) {
-      // ... tus errores 409/422 ...
-      throw new Error(body?.error || `HTTP ${r.status}`);
-    }
+      const body = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(body?.message || `HTTP ${r.status}`);
 
-    const { recipe } = body || {};
-    // Asociar a grupos seleccionados
-    const groupIds = values.groupIds || []; // viene del form.buildPayload
-    if (recipe?.id && Array.isArray(groupIds) && groupIds.length) {
+      const recipe = body?.recipe;
+
+      const groupIds = Array.isArray(values.groupIds) ? values.groupIds : [];
+    if (recipe?.id && groupIds.length) {
       await Promise.all(
         groupIds.map((gid) =>
           fetch(`${API}/groups/${gid}/recipes/${recipe.id}`, {
@@ -103,31 +95,23 @@ export default function CreateRecipeScreen() {
       );
     }
 
-    // feedback + redirect
-    alert("¡Receta creada!");
-    router.replace(`/recipes/${recipe.id}`);
-  } catch (e) {
-    alert(String(e?.message || "No se pudo crear la receta."));
-  } finally {
-    setSubmitting(false);
+
+      alert("¡Receta creada!");
+      router.replace(`/recipes`); // ← vuelve al tab principal
+    } catch (e) {
+      alert(String(e?.message || "No se pudo crear la receta."));
+    } finally {
+      setSubmitting(false);
+    }
   }
-}
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
-      {banner && (
-        <Banner
-          type={banner.type}
-          text={banner.text}
-          autoHideMs={banner.autoHideMs}
-          onClose={() => setBanner(null)}
-        />
-      )}
+      {banner && <Banner {...banner} onClose={() => setBanner(null)} />}
 
-      {/* Header */}
-      <View style={{ padding: 16, paddingBottom: 0, flexDirection: "row", alignItems: "center" }}>
+      <View style={{ padding: 16, flexDirection: "row", alignItems: "center" }}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={onBack}
           style={{
             width: 42,
             height: 42,
@@ -137,7 +121,7 @@ export default function CreateRecipeScreen() {
             justifyContent: "center",
           }}
         >
-          <Ionicons name="arrow-back" size={20} color="#ffffffff" />
+          <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
         <Text style={{ color: "#fff", fontSize: 20, fontWeight: "700", marginLeft: 10 }}>Crear receta</Text>
       </View>

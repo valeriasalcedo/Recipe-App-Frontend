@@ -1,5 +1,5 @@
 import {
-  View, Text, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity,
+  View, Image, Text, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -61,8 +61,14 @@ const SignUpScreen = () => {
         style={authStyles.keyboardView}
       >
         <ScrollView contentContainerStyle={authStyles.scrollContent} showsVerticalScrollIndicator={false}>
-
-          <Text style={authStyles.title}>Create Account</Text>
+        <View style={authStyles.imageContainer}>
+                    <Image
+                      source={require("../../assets/images/vaca1.png")}
+                      style={authStyles.image}
+                      resizeMode="contain"
+                    />
+                  </View>
+          <Text style={authStyles.title}>Crea una cuenta</Text>
 
           <View style={authStyles.formContainer}>
 
