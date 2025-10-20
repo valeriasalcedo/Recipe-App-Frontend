@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal } from "react-native";
 import { COLORS } from "@/constants/colors";
-
 export default function GroupModal({ visible, onClose, onSubmit, initial }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -13,9 +12,9 @@ export default function GroupModal({ visible, onClose, onSubmit, initial }) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 }}>
-        <View style={{ backgroundColor: "#0f0f0f", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }}>
-          <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 10 }}>
+      <View style={{ flex: 1, backgroundColor: "rgba(204, 175, 175, 0.81)", justifyContent: "center", padding: 20 }}>
+        <View style={{ backgroundColor: "#e48787ff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "rgba(212, 62, 62, 0.1)" }}>
+          <Text style={{ color: "#bca0a0ff", fontSize: 18, fontWeight: "700", marginBottom: 10 }}>
             {initial ? "Editar grupo" : "Nuevo grupo"}
           </Text>
 
@@ -26,7 +25,7 @@ export default function GroupModal({ visible, onClose, onSubmit, initial }) {
             placeholder="Ej. Desayunos"
             placeholderTextColor="#9aa0a6"
             style={{
-              backgroundColor: "#121212", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+              backgroundColor: "#9a1818ff", borderWidth: 1, borderColor: "rgba(200, 125, 125, 0.08)",
               color: "#fff", padding: 12, borderRadius: 10
             }}
           />
@@ -38,7 +37,7 @@ export default function GroupModal({ visible, onClose, onSubmit, initial }) {
             placeholder="Breve descripción"
             placeholderTextColor="#9aa0a6"
             style={{
-              backgroundColor: "#121212", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+              backgroundColor: "#d7ccccff", borderWidth: 1, borderColor: "rgba(201, 138, 138, 0.08)",
               color: "#fff", padding: 12, borderRadius: 10
             }}
           />

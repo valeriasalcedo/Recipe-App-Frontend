@@ -1,4 +1,3 @@
-// app/(tabs)/my-recipes.jsx (o donde tengas el tab)
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -21,7 +20,7 @@ import { useRouter } from "expo-router";
 
 const MyRecipesScreen = () => {
   const router = useRouter();
-  const { user, accessToken, logout } = useAuth(); // <- asegúrate de exponer logout en tu context
+  const { user, accessToken, logout } = useAuth(); 
   const [myRecipes, setMyRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,7 +115,7 @@ const handleSignOut = () => {
         logout?.().catch(() => {});
       }
     }}
-    // Asegura área de toque visible y grande
+
     style={{
       paddingHorizontal: 14,
       paddingVertical: 10,
@@ -131,7 +130,7 @@ const handleSignOut = () => {
   >
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
       <Ionicons name="log-out-outline" size={20} color={COLORS.text} />
-      <Text style={{ color: COLORS.text, fontWeight: "700" }}>Logout</Text>
+      <Text style={{ color: COLORS.text, fontWeight: "700" }}>Cerrar Sesion</Text>
     </View>
   </TouchableOpacity>
 </View>
@@ -161,7 +160,10 @@ const handleSignOut = () => {
               <View style={{ alignItems: "center", paddingVertical: 40 }}>
                 <Ionicons name="restaurant-outline" size={28} color={COLORS.mutedText} />
                 <Text style={{ marginTop: 8, color: COLORS.mutedText }}>
-                  You haven’t created any recipes yet.
+                  No has creado ninguna receta aún.
+                </Text>
+                <Text style={{ marginTop: 4, color: COLORS.mutedText }}>
+                  ¡Comienza creando tu primera receta!
                 </Text>
               </View>
             }

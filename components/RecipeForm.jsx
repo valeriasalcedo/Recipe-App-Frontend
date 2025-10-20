@@ -117,7 +117,6 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
     const imageList = images.map((u) => u.trim()).filter(Boolean);
     if (imageList.length) payload.images = imageList;
 
-    // grupos (vuelven al padre para asociar tras crear/editar)
     payload.groupIds = Array.from(selectedGroupIds);
 
     return payload;
@@ -250,7 +249,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
 
         {/* Tiempo y porciones */}
         <Card>
-          <Label icon="hourglass-outline" text="Cook time (min)" />
+          <Label icon="hourglass-outline" text="Tiempo de preparación (min)" />
           <Input
             keyboardType="numeric"
             inputMode="numeric"
@@ -258,7 +257,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
             onChangeText={(t) => setCookTime(onlyDigits(t))}
             placeholder="Minutos"
           />
-          <Label icon="people-outline" text="Servings" style={{ marginTop: 10 }} />
+          <Label icon="people-outline" text="Porciones" style={{ marginTop: 10 }} />
           <Input
             keyboardType="numeric"
             inputMode="numeric"
@@ -303,7 +302,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 </View>
               )}
               {imageErrors[idx] && (
-                <Text style={{ color: "#ffb3b3", marginTop: 6 }}>
+                <Text style={{ color: "#b67373ff", marginTop: 6 }}>
                   No se pudo cargar la imagen. Verifica la URL.
                 </Text>
               )}
@@ -337,9 +336,9 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
               key={`ing-${idx}`}
               style={{
                 marginTop: 10,
-                padding: 10,
+                padding: 20,
                 borderRadius: 12,
-                backgroundColor: "#121212",
+                backgroundColor: "#ffe1e1ff",
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.08)",
               }}
@@ -352,15 +351,15 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 onChangeText={(t) => updateIngredient(idx, "name", t)}
                 placeholder="Nombre (obligatorio)"
               />
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              <View style={{ flexDirection: "row", gap: 4, marginTop: 8, }}>
                 <Input
-                  style={{ flex: 1 }}
+                  style={{ width: 150 }}
                   value={ing.quantity}
                   onChangeText={(t) => updateIngredient(idx, "quantity", t)}
                   placeholder="Cantidad (ej. 200)"
                 />
                 <Input
-                  style={{ flex: 1 }}
+                  style={{ width: 155 }}
                   value={ing.unit}
                   onChangeText={(t) => updateIngredient(idx, "unit", t)}
                   placeholder="Unidad (g, ml, taza...)"
@@ -416,7 +415,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                   onPress={addStep}
                   style={iconSquareBtn("rgba(255,255,255,0.06)")}
                 >
-                  <Ionicons name="add-outline" size={18} color="#fff" />
+                  <Ionicons name="add-outline" size={18} color="#1b1b1bff" />
                 </TouchableOpacity>
               )}
             </View>
@@ -442,7 +441,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
             }
           />
           {groups.length === 0 ? (
-            <Text style={{ color: "#bbb" }}>
+            <Text style={{ color: "#cdc3c3ff" }}>
               No tienes grupos. Crea uno con el botón “Crear grupo”.
             </Text>
           ) : (
@@ -456,17 +455,17 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                     style={[
                       chip,
                       active && {
-                        backgroundColor: "rgba(124,92,255,0.25)",
-                        borderColor: "#7C5CFF",
+                        backgroundColor: "rgba(122, 78, 34, 0.25)",
+                        borderColor: "#804715ff",
                       },
                     ]}
                   >
                     <Ionicons
                       name={active ? "checkmark-circle" : "ellipse-outline"}
                       size={14}
-                      color="#fff"
+                      color="#865b5bea"
                     />
-                    <Text style={{ color: "#fff" }}>{g.name}</Text>
+                    <Text style={{ color: "#000000c1" }}>{g.name}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -497,7 +496,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
         <View
           style={{
             flex: 1,
-            backgroundColor: "rgba(0,0,0,0.6)",
+            backgroundColor: "rgba(101, 76, 76, 0.6)",
             alignItems: "center",
             justifyContent: "center",
             padding: 16,
@@ -508,7 +507,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
               width: "100%",
               maxWidth: 420,
               borderRadius: 16,
-              backgroundColor: "#111",
+              backgroundColor: "#ffffffff",
               padding: 16,
               borderWidth: 1,
               borderColor: "rgba(255,255,255,0.08)",
@@ -518,10 +517,10 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
               Crear grupo
             </Text>
 
-            <Text style={{ color: "#aaa", marginBottom: 6 }}>Nombre</Text>
+            <Text style={{ color: "#645e5eff", marginBottom: 6 }}>Nombre</Text>
             <Input value={gName} onChangeText={setGName} placeholder="Ej. Almuerzos" />
 
-            <Text style={{ color: "#aaa", marginTop: 12, marginBottom: 6 }}>
+            <Text style={{ color: "#706969ff", marginTop: 12, marginBottom: 6 }}>
               Descripción (opcional)
             </Text>
             <Input
@@ -533,7 +532,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
 
             <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
               <TouchableOpacity onPress={() => setGroupModalOpen(false)} style={ghostBtn}>
-                <Text style={{ color: "#fff" }}>Cancelar</Text>
+                <Text style={{ color: "#000000ff" }}>Cancelar</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -541,7 +540,7 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
                 disabled={creatingGroup}
                 style={[smallBtn(COLORS.primary), { opacity: creatingGroup ? 0.6 : 1 }]}
               >
-                <Ionicons name="save-outline" size={16} color="#fff" />
+                <Ionicons name="save-outline" size={16} color="#faf5f5ff" />
                 <Text style={smallBtnText}>{creatingGroup ? "Guardando..." : "Guardar"}</Text>
               </TouchableOpacity>
             </View>
@@ -554,17 +553,16 @@ export default function RecipeForm({ initialValues, onSubmit, submitting }) {
 
 /* ---------- THEME ---------- */
 const UI = {
-  surface: "#83a58dff",
-  surface2: "#7fcaa1ff",
-  border: "rgba(255,255,255,0.06)",
-  borderFocus: "#5cff82ff",
+  surface: "#faececd2",
+  surface2: "#ffb8ab91",
+  border: "rgba(43, 38, 38, 0.22)",
+  borderFocus: "#c43838ff",
   text: "#000000ff",
   textLight: "rgba(0, 0, 0, 0.8)",
   textMuted: "rgba(0, 0, 0, 0.55)",
-  shadow: "rgba(211, 233, 225, 0.35)",
+  shadow: "rgba(180, 73, 61, 0.35)",
 };
 
-/* ---------- Card con borde degradado sutil ---------- */
 const Card = ({ children, style }) => (
   <LinearGradient
     colors={["rgba(124,92,255,0.18)", "rgba(124,92,255,0.04)"]}
@@ -598,7 +596,6 @@ const Card = ({ children, style }) => (
   </LinearGradient>
 );
 
-/* ---------- Label con icono pastilla ---------- */
 const Label = ({ icon, text, style, right }) => (
   <View
     style={[
@@ -607,7 +604,7 @@ const Label = ({ icon, text, style, right }) => (
     ]}
   >
     <LinearGradient
-      colors={["#254227ff", "#183022ff"]}
+      colors={["#9c6538ff", "#302618ff"]}
       style={{
         width: 28,
         height: 28,
@@ -617,7 +614,7 @@ const Label = ({ icon, text, style, right }) => (
         marginRight: 10,
       }}
     >
-      <Ionicons name={icon} size={16} color="#fff" />
+      <Ionicons name={icon} size={16} color="#ffffffff" />
     </LinearGradient>
     <Text style={{ color: UI.textLight, fontWeight: "600", letterSpacing: 0.3 }}>
       {text}
@@ -626,7 +623,6 @@ const Label = ({ icon, text, style, right }) => (
   </View>
 );
 
-/* ---------- Input con estado de focus ---------- */
 const Input = ({ style, ...props }) => {
   const [focused, setFocused] = React.useState(false);
   return (
@@ -674,7 +670,7 @@ const iconSquareBtn = (bg = "rgba(255,255,255,0.06)") => ({
   borderColor: UI.border,
 });
 
-const smallBtn = (bg = "#1b2b22ff") => ({
+const smallBtn = (bg = "#2b211bff") => ({
   flexDirection: "row",
   alignItems: "center",
   gap: 8,
@@ -687,9 +683,9 @@ const smallBtn = (bg = "#1b2b22ff") => ({
 });
 
 const smallBtnText = {
-  color: "#fff",
+  color: "#ffffffff",
   fontSize: 12,
-  fontWeight: "700",
+  fontWeight: "400",
   letterSpacing: 0.3,
 };
 
@@ -710,7 +706,7 @@ const numBadge = {
   width: 26,
   height: 26,
   borderRadius: 13,
-  backgroundColor: "#1c5f2cff",
+  backgroundColor: "#ba7843ff",
   alignItems: "center",
   justifyContent: "center",
   borderWidth: 1,
@@ -724,9 +720,9 @@ const chip = {
   paddingHorizontal: 12,
   paddingVertical: 7,
   borderRadius: 999,
-  backgroundColor: "rgba(124,92,255,0.12)",
+  backgroundColor: "rgba(255, 195, 92, 0.12)",
   borderWidth: 1,
-  borderColor: "rgba(124,92,255,0.35)",
+  borderColor: "rgba(255, 92, 100, 0.35)",
 };
 
 const submitBtn = {
@@ -744,7 +740,7 @@ const submitBtn = {
 };
 
 const submitText = {
-  color: "#fff",
+  color: "#ffffffff",
   fontSize: 16,
   fontWeight: "800",
   letterSpacing: 0.4,

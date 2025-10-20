@@ -48,7 +48,7 @@ const sunsetTheme = {
   text: "#2C1810",
   border: "#FFD5CC",
   white: "#FFFFFF",
-  textLight: "#FFA494",
+  textLight: "#523833ff",
   card: "#FFFFFF",
   shadow: "#000000",
 };
@@ -97,4 +97,4 @@ export const THEMES = {
   roseGold: roseGoldTheme,
 };
 
-export const COLORS = THEMES.purple;
+export const COLORS = THEMES.sunset; // Tema por defecto

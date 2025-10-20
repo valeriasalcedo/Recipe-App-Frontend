@@ -84,7 +84,7 @@ export default function SearchScreen() {
           <Ionicons name="search" size={20} color={COLORS.textLight} style={searchStyles.searchIcon} />
           <TextInput
             style={searchStyles.searchInput}
-            placeholder="Search recipes, ingredients..."
+            placeholder="Buscar recetas, ingredientes..."
             placeholderTextColor={COLORS.textLight}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -103,9 +103,9 @@ export default function SearchScreen() {
       <View style={searchStyles.resultsSection}>
         <View style={searchStyles.resultsHeader}>
           <Text style={searchStyles.resultsTitle}>
-            {searchQuery ? `Results for "${searchQuery}"` : "Popular Recipes"}
+            {searchQuery ? `Results for "${searchQuery}"` : "Recetas populares"}
           </Text>
-          <Text style={searchStyles.resultsCount}>{recipes.length} found</Text>
+          <Text style={searchStyles.resultsCount}>{recipes.length} resultados</Text>
         </View>
 
         {loading ? (
@@ -133,7 +133,7 @@ function NoResultsFound() {
   return (
     <View style={searchStyles.emptyState}>
       <Ionicons name="search-outline" size={64} color={COLORS.textLight} />
-      <Text style={searchStyles.emptyTitle}>No recipes found</Text>
+      <Text style={searchStyles.emptyTitle}> No se encontraron recetas</Text>
       <Text style={searchStyles.emptyDescription}>
         Try adjusting your search or try different keywords
       </Text>
