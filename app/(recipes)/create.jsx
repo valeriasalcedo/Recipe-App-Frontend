@@ -14,14 +14,75 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { COLORS } from "../../constants/colors";
 import { useAuth } from "../../src/auth/AuthContext";
 import { RecipeAPI } from "../../services/recipeAPI";
 
+/* ===================== Helpers Cloudinary ===================== */
+// Obtiene la firma del backend (JWT requerido)
+async function getUploadSignature(API_URL, token) {
+  const r = await fetch(`${API_URL}/api/upload/signature`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) {
+    let msg = "No se pudo obtener la firma";
+    try {
+      const j = await r.json();
+      msg = j?.message || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  return r.json(); // { timestamp, folder, signature, apiKey, cloudName }
+}
+
+// Sube un archivo a Cloudinary usando la firma
+async function uploadToCloudinary(file, sig) {
+  const form = new FormData();
+  form.append("file", {
+    uri: file.uri,
+    type: file.type || "image/jpeg",
+    name: file.name || "recipe.jpg",
+  });
+  form.append("api_key", String(sig.apiKey));
+  form.append("timestamp", String(sig.timestamp));
+  form.append("folder", sig.folder);
+  form.append("signature", sig.signature);
+
+  const resp = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`, {
+    method: "POST",
+    body: form,
+  });
+  if (!resp.ok) {
+    let msg = "Falló la subida a Cloudinary";
+    try {
+      const j = await resp.json();
+      msg = j?.error?.message || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  const json = await resp.json();
+  return { url: json.secure_url, publicId: json.public_id };
+}
+
+// Mini util para thumbs (opcional)
+function cloudinaryThumb(url, { w = 300, h = 300, crop = "fill" } = {}) {
+  if (!url || !url.includes("/upload/")) return url;
+  return url.replace("/upload/", `/upload/f_auto,q_auto,w_${w},h_${h},c_${crop}/`);
+}
+/* ============================================================= */
+
 const CreateRecipeScreen = () => {
   const router = useRouter();
   const { user, accessToken } = useAuth();
-  const token = user?.accessToken || user?.token || null;
+  const token = accessToken || user?.accessToken || user?.token || null;
+
+  // URL base de API (ajusta si ya la tienes centralizada)
+  const API_URL =
+    (RecipeAPI && (RecipeAPI.API_URL || RecipeAPI.baseURL || RecipeAPI.getBaseUrl?.())) ||
+    process.env.EXPO_PUBLIC_API_URL ||
+    "http://10.0.2.2:4000";
 
   // Campos obligatorios del DTO
   const [title, setTitle] = useState("");
@@ -33,9 +94,11 @@ const CreateRecipeScreen = () => {
   // steps: string[]
   const [steps, setSteps] = useState([""]);
 
-  // images: string[] (urls)
-  const [images, setImages] = useState([""]);
-  const [imageErrors, setImageErrors] = useState({}); // {index: true} si falla preview
+  // imágenes (subidas a Cloudinary)
+  const [images, setImages] = useState([]);              // URLs (secure_url)
+  const [imagePublicIds, setImagePublicIds] = useState([]); // public_id
+  const [uploading, setUploading] = useState(false);
+  const [imageErrors, setImageErrors] = useState({});
 
   // tags: string[]
   const [tagInput, setTagInput] = useState("");
@@ -50,8 +113,7 @@ const CreateRecipeScreen = () => {
   const updateIngredient = (idx, field, value) =>
     setIngredients((arr) => arr.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
 
-  const removeIngredient = (idx) =>
-    setIngredients((arr) => arr.filter((_, i) => i !== idx));
+  const removeIngredient = (idx) => setIngredients((arr) => arr.filter((_, i) => i !== idx));
 
   /* ---------------- Pasos ---------------- */
   const addStep = () => setSteps((arr) => [...arr, ""]);
@@ -59,13 +121,53 @@ const CreateRecipeScreen = () => {
   const removeStep = (idx) => setSteps((arr) => arr.filter((_, i) => i !== idx));
 
   /* ---------------- Imágenes ---------------- */
-  const addImage = () => setImages((arr) => [...arr, ""]);
-  const updateImage = (idx, value) => {
-    setImages((arr) => arr.map((u, i) => (i === idx ? value : u)));
-    setImageErrors((err) => ({ ...err, [idx]: false }));
-  };
-  const removeImage = (idx) => {
+  async function addImageFromGallery() {
+    try {
+      if (!token) return Alert.alert("Sesión requerida", "No estás autenticada.");
+
+      // Permisos
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        return Alert.alert("Permiso requerido", "Necesitamos acceso a la galería.");
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      setUploading(true);
+
+      // Redimensionar / comprimir antes de subir (ancho máx 1920)
+      const manip = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1920 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      // 1) Firma con el backend
+      const sig = await getUploadSignature(API_URL, token);
+      // 2) Subir a Cloudinary
+      const { url, publicId } = await uploadToCloudinary(
+        { uri: manip.uri, type: "image/jpeg", name: "recipe.jpg" },
+        sig
+      );
+
+      setImages((arr) => [...arr, url]);
+      setImagePublicIds((arr) => [...arr, publicId]);
+    } catch (e) {
+      Alert.alert("Error", e?.message || "No se pudo subir la imagen.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const removeImageAt = (idx) => {
     setImages((arr) => arr.filter((_, i) => i !== idx));
+    setImagePublicIds((arr) => arr.filter((_, i) => i !== idx));
     setImageErrors((err) => {
       const copy = { ...err };
       delete copy[idx];
@@ -89,18 +191,15 @@ const CreateRecipeScreen = () => {
     if (ingClean.length === 0) return "Agrega al menos 1 ingrediente con nombre.";
     const stepsClean = steps.map((s) => s.trim()).filter(Boolean);
     if (stepsClean.length === 0) return "Agrega al menos 1 paso.";
-    // imágenes opcionales pero, si hay texto, debe ser URL (el backend valida zod, aquí ligero)
-    // tags opcional
     return null;
   };
 
   const handleSubmit = async () => {
     const err = validate();
     if (err) return Alert.alert("Validación", err);
-
-    if (!accessToken){
-        Alert.alert("Sesion requerida", "No estás autenticado.");
-        return;
+    if (!token) {
+      Alert.alert("Sesión requerida", "No estás autenticada.");
+      return;
     }
 
     const payload = {
@@ -115,16 +214,16 @@ const CreateRecipeScreen = () => {
         }))
         .filter((i) => i.name),
       steps: steps.map((s) => s.trim()).filter(Boolean),
+      images,           // <- URLs Cloudinary
+      imagePublicIds,   // <- public_id Cloudinary
     };
-
-    const imageList = images.map((u) => u.trim()).filter(Boolean);
-    if (imageList.length) payload.images = imageList;
 
     if (tags.length) payload.tags = tags;
 
     setSubmitting(true);
     try {
-      const recipe = await RecipeAPI.createRecipe(payload, accessToken);
+      // Usa tu servicio existente
+      const recipe = await RecipeAPI.createRecipe(payload, token);
       Alert.alert("Éxito", "Receta creada correctamente.");
       const newId = recipe?.id;
       if (newId) router.replace({ pathname: "/(recipes)/[id]", params: { id: String(newId) } });
@@ -145,10 +244,7 @@ const CreateRecipeScreen = () => {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={{ marginBottom: 12, flexDirection: "row", alignItems: "center" }}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={circleBtn(COLORS.primary)}
-          >
+          <TouchableOpacity onPress={() => router.back()} style={circleBtn(COLORS.primary)}>
             <Ionicons name="arrow-back" size={20} color="#fff" />
           </TouchableOpacity>
           <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: "700", marginLeft: 10 }}>
@@ -159,11 +255,7 @@ const CreateRecipeScreen = () => {
         {/* Título & Descripción */}
         <Card>
           <Label icon="restaurant-outline" text="Título" />
-          <Input
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Ej. Arepas rellenas"
-          />
+          <Input value={title} onChangeText={setTitle} placeholder="Ej. Arepas rellenas" />
           <Label icon="document-text-outline" text="Descripción (opcional)" style={{ marginTop: 10 }} />
           <Input
             value={description}
@@ -173,62 +265,102 @@ const CreateRecipeScreen = () => {
           />
         </Card>
 
-        {/* Imágenes (múltiples URLs + preview) */}
+        {/* Imágenes (subida a Cloudinary) */}
         <Card>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <Label icon="image-outline" text="Imágenes (URLs)" />
+            <Label icon="image-outline" text="Imágenes" />
             <Text style={{ color: COLORS.textLight }}>(opcional)</Text>
           </View>
 
-          {images.map((url, idx) => (
-            <View key={`img-${idx}`} style={{ marginBottom: 12 }}>
-              <Input
-                value={url}
-                onChangeText={(t) => updateImage(idx, t)}
-                placeholder="https://...jpg"
-                autoCapitalize="none"
-              />
-              {!!url && (
-                <View style={{ height: 160, borderRadius: 12, overflow: "hidden", marginTop: 8, backgroundColor: "#111" }}>
+          {/* Lista horizontal de previews + botón Agregar */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+            {images.map((url, idx) => (
+              <View key={`img-${idx}`} style={{ position: "relative" }}>
+                <View
+                  style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    backgroundColor: "#111",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }}
+                >
                   <Image
-                    source={{ uri: url }}
+                    source={{ uri: cloudinaryThumb(url, { w: 300, h: 300, crop: "fill" }) }}
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
                     onError={() => setImageErrors((e) => ({ ...e, [idx]: true }))}
                     onLoad={() => setImageErrors((e) => ({ ...e, [idx]: false }))}
                   />
                 </View>
-              )}
-              {imageErrors[idx] && (
-                <Text style={{ color: "#ffb3b3", marginTop: 6 }}>No se pudo cargar la imagen. Verifica la URL.</Text>
-              )}
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                <TouchableOpacity onPress={() => removeImage(idx)} style={smallBtn("#2b1b1b")}>
-                  <Ionicons name="trash-outline" size={16} color="#fff" />
-                  <Text style={smallBtnText}>Eliminar</Text>
-                </TouchableOpacity>
-                {idx === images.length - 1 && (
-                  <TouchableOpacity onPress={addImage} style={ghostBtn}>
-                    <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
-                    <Text style={{ color: COLORS.primary, marginLeft: 6 }}>Agregar otra</Text>
-                  </TouchableOpacity>
+                {imageErrors[idx] && (
+                  <Text style={{ color: "#ffb3b3", marginTop: 6, width: 120 }}>No se pudo cargar la imagen.</Text>
                 )}
+                <TouchableOpacity
+                  onPress={() => removeImageAt(idx)}
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    backgroundColor: "rgba(0,0,0,0.6)",
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 999,
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontSize: 12 }}>Eliminar</Text>
+                </TouchableOpacity>
               </View>
-            </View>
-          ))}
-          {images.length === 0 && (
-            <TouchableOpacity onPress={addImage} style={ghostBtn}>
-              <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
-              <Text style={{ color: COLORS.primary, marginLeft: 6 }}>Agregar imagen</Text>
+            ))}
+
+            <TouchableOpacity
+              onPress={addImageFromGallery}
+              style={{
+                width: 120,
+                height: 120,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderStyle: "dashed",
+                borderColor: "rgba(255,255,255,0.12)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {uploading ? (
+                <ActivityIndicator />
+              ) : (
+                <>
+                  <Ionicons name="add-circle-outline" size={20} color={COLORS.primary} />
+                  <Text style={{ color: COLORS.primary, marginTop: 6 }}>Agregar</Text>
+                </>
+              )}
             </TouchableOpacity>
-          )}
+          </ScrollView>
+
+          {/* Nota opcional para pegar URLs manualmente (si lo deseas)
+          <Text style={{ color: COLORS.textMuted, marginTop: 8, fontSize: 12 }}>
+            También puedes permitir pegar una URL aquí si ya tienes una imagen hospedada.
+          </Text>
+          */}
         </Card>
 
         {/* Ingredientes */}
         <Card>
           <Label icon="list-outline" text="Ingredientes" />
           {ingredients.map((ing, idx) => (
-            <View key={`ing-${idx}`} style={{ marginTop: 10, padding: 10, borderRadius: 12, backgroundColor: "#121212", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+            <View
+              key={`ing-${idx}`}
+              style={{
+                marginTop: 10,
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: "#121212",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+              }}
+            >
               <Text style={{ color: COLORS.textLight, marginBottom: 8 }}>Ingrediente #{idx + 1}</Text>
               <Input
                 value={ing.name}
@@ -277,7 +409,9 @@ const CreateRecipeScreen = () => {
           <Label icon="book-outline" text="Pasos" />
           {steps.map((val, idx) => (
             <View key={`step-${idx}`} style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: 10 }}>
-              <View style={numBadge}><Text style={{ color: "#fff", fontWeight: "700" }}>{idx + 1}</Text></View>
+              <View style={numBadge}>
+                <Text style={{ color: "#fff", fontWeight: "700" }}>{idx + 1}</Text>
+              </View>
               <Input
                 style={{ flex: 1 }}
                 value={val}
@@ -337,10 +471,7 @@ const CreateRecipeScreen = () => {
 
         {/* Submit */}
         <TouchableOpacity disabled={submitting} onPress={handleSubmit} style={{ marginTop: 10 }}>
-          <LinearGradient
-            colors={[COLORS.primary, COLORS.primary + "CC"]}
-            style={submitBtn}
-          >
+          <LinearGradient colors={[COLORS.primary, COLORS.primary + "CC"]} style={submitBtn}>
             {submitting ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
@@ -356,21 +487,26 @@ const CreateRecipeScreen = () => {
 
 /* ---------- Sub-UI ---------- */
 const Card = ({ children }) => (
-  <View style={{
-    borderRadius: 16,
-    backgroundColor: "#0f0f0f",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    padding: 12,
-    marginBottom: 16,
-  }}>
+  <View
+    style={{
+      borderRadius: 16,
+      backgroundColor: "#0f0f0f",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.06)",
+      padding: 12,
+      marginBottom: 16,
+    }}
+  >
     {children}
   </View>
 );
 
 const Label = ({ icon, text, style }) => (
   <View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }, style]}>
-    <LinearGradient colors={["#2c2c2c", "#1a1a1a"]} style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
+    <LinearGradient
+      colors={["#2c2c2c", "#1a1a1a"]}
+      style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}
+    >
       <Ionicons name={icon} size={16} color="#fff" />
     </LinearGradient>
     <Text style={{ color: COLORS.textLight }}>{text}</Text>
@@ -380,7 +516,7 @@ const Label = ({ icon, text, style }) => (
 const Input = ({ style, ...props }) => (
   <TextInput
     {...props}
-    style={[{
+    style={{
       backgroundColor: "#121212",
       borderWidth: 1,
       borderColor: "rgba(255,255,255,0.08)",
@@ -388,7 +524,8 @@ const Input = ({ style, ...props }) => (
       paddingHorizontal: 12,
       paddingVertical: 12,
       borderRadius: 12,
-    }, style]}
+      ...(style || {}),
+    }}
     placeholderTextColor={COLORS.textMuted}
     autoCorrect={false}
   />
@@ -396,19 +533,31 @@ const Input = ({ style, ...props }) => (
 
 /* ---------- Styles pequeños ---------- */
 const circleBtn = (bg) => ({
-  width: 42, height: 42, borderRadius: 21,
-  backgroundColor: bg, alignItems: "center", justifyContent: "center",
+  width: 42,
+  height: 42,
+  borderRadius: 21,
+  backgroundColor: bg,
+  alignItems: "center",
+  justifyContent: "center",
 });
 
 const iconSquareBtn = (bg) => ({
-  width: 36, height: 36, borderRadius: 10,
-  backgroundColor: bg, alignItems: "center", justifyContent: "center",
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  backgroundColor: bg,
+  alignItems: "center",
+  justifyContent: "center",
 });
 
 const smallBtn = (bg) => ({
-  flexDirection: "row", alignItems: "center", gap: 6,
-  paddingHorizontal: 10, paddingVertical: 8,
-  borderRadius: 10, backgroundColor: bg,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+  paddingHorizontal: 10,
+  paddingVertical: 8,
+  borderRadius: 10,
+  backgroundColor: bg,
 });
 
 const smallBtnText = { color: "#fff", fontSize: 12, fontWeight: "600" };
@@ -425,8 +574,12 @@ const ghostBtn = {
 };
 
 const numBadge = {
-  width: 24, height: 24, borderRadius: 12,
-  backgroundColor: COLORS.primary, alignItems: "center", justifyContent: "center",
+  width: 24,
+  height: 24,
+  borderRadius: 12,
+  backgroundColor: COLORS.primary,
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const chip = {
