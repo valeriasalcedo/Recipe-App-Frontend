@@ -63,7 +63,7 @@ const SignUpScreen = () => {
         <ScrollView contentContainerStyle={authStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={authStyles.imageContainer}>
                     <Image
-                      source={require("../../assets/images/vaca1.png")}
+                      source={require("../../assets/images/vaca3.png")}
                       style={authStyles.image}
                       resizeMode="contain"
                     />
